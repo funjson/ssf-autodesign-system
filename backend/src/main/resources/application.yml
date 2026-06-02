@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/ssf_autodesign?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${SPRING_DATASOURCE_USERNAME:ssf}
+    password: ${SPRING_DATASOURCE_PASSWORD:ssf_password}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: ${SERVER_PORT:8080}
+
+ssf:
+  file-encoding: UTF-8
+  data-root: ${SSF_DATA_ROOT:../data}
+  demo:
+    enabled: ${SSF_DEMO_ENABLED:true}
+    workspace-path: ${SSF_DEMO_WORKSPACE_PATH:../demo/ssf-workspace}

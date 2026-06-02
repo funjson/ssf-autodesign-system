@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Iframe Child Prototype</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #ffffff;
+      color: #17211c;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body[data-mode="annotate"] [data-ann-target]:hover {
+      outline: 2px solid #e69a25;
+      outline-offset: 2px;
+      cursor: crosshair;
+    }
+
+    header,
+    .card,
+    .nested,
+    .row,
+    button {
+      position: relative;
+    }
+
+    header {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 18px;
+      padding: 18px;
+      border: 1px solid #dce4dc;
+      border-radius: 10px;
+      background: #f8fbf8;
+    }
+
+    h1,
+    h2,
+    p {
+      margin: 0;
+    }
+
+    p {
+      color: #5d6a62;
+      line-height: 1.5;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid #dce4dc;
+      border-radius: 10px;
+      background: #ffffff;
+      box-shadow: 0 10px 22px rgba(25, 36, 30, 0.08);
+    }
+
+    .nested {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px dashed #b7c5ba;
+      border-radius: 8px;
+      background: #fbfcfa;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 10px;
+      border: 1px solid #e4ebe5;
+      border-radius: 7px;
+      background: #ffffff;
+    }
+
+    button {
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid #a9b8ad;
+      border-radius: 7px;
+      background: #f5f8f5;
+      color: #17211c;
+      font-weight: 700;
+    }
+
+    #annotationLayer {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 2147483646;
+    }
+
+    .draft-box {
+      position: fixed;
+      border: 3px solid #1f6f5b;
+      border-radius: 8px;
+      background: rgba(31, 111, 91, 0.12);
+      box-shadow: 0 0 0 2px rgba(31, 111, 91, 0.18), 0 10px 24px rgba(24, 32, 29, 0.16);
+    }
+
+    .draft-label {
+      position: absolute;
+      top: -24px;
+      right: -2px;
+      max-width: 220px;
+      overflow: hidden;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: #1f6f5b;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body data-mode="browse">
+  <header data-ann-target>
+    <h1 data-ann-target>Today Radar Home</h1>
+    <p data-ann-target>这个 header、标题、说明文本都是独立可标注 DOM。</p>
+    <button data-ann-target type="button">Header Action</button>
+  </header>
+
+  <div class="grid">
+    <article class="card" data-ann-target>
+      <h2 data-ann-target>今日状态卡片</h2>
+      <p data-ann-target>点击卡片、标题、正文、按钮，应该能分别进入父页面列表。</p>
+      <div class="nested" data-ann-target>
+        <strong data-ann-target>嵌套分组</strong>
+        <div class="row" data-ann-target>
+          <span data-ann-target>关键更新 3 条</span>
+          <button data-ann-target type="button">查看</button>
+        </div>
+      </div>
+    </article>
+
+    <article class="card" data-ann-target>
+      <h2 data-ann-target>突发新闻卡片</h2>
+      <p data-ann-target>用于验证第二个卡片不会被第一个卡片吞掉。</p>
+      <div class="row" data-ann-target>
+        <span data-ann-target>AI / Finance</span>
+        <button data-ann-target type="button">播放简报</button>
+      </div>
+    </article>
+  </div>
+
+  <script>
+    const pagePath = "child.html";
+    let annotationMode = false;
+    let draftTargets = [];
+    let nextTargetId = 1;
+    let lastParentMessage = "-";
+    let lastAction = "-";
+
+    function post(message) {
+      window.parent.postMessage(message, "*");
+    }
+
+    function reportDebug() {
+      post({
+        type: "child-debug",
+        mode: annotationMode ? "annotate" : "browse",
+        draftCount: draftTargets.length,
+        lastParentMessage,
+        lastAction
+      });
+    }
+
+    function ensureTargetId(element) {
+      const existing = element.getAttribute("data-ann-id");
+      if (existing) return existing;
+      const id = `repro-dom-${nextTargetId++}`;
+      element.setAttribute("data-ann-id", id);
+      return id;
+    }
+
+    function initTargets() {
+      document.querySelectorAll("[data-ann-target]").forEach(element => ensureTargetId(element));
+    }
+
+    function selectorFor(element) {
+      return `[data-ann-id="${ensureTargetId(element)}"]`;
+    }
+
+    function targetFromElement(element) {
+      const text = (element.innerText || element.textContent || "").trim().replace(/\s+/g, " ").slice(0, 100);
+      return {
+        targetId: ensureTargetId(element),
+        pagePath,
+        selector: selectorFor(element),
+        tagName: element.tagName.toLowerCase(),
+        textFingerprint: text
+      };
+    }
+
+    function sameTarget(left, right) {
+      if (!left || !right || left.pagePath !== right.pagePath) return false;
+      if (left.targetId && right.targetId && left.targetId === right.targetId) return true;
+      return !!left.selector && !!right.selector && left.selector === right.selector;
+    }
+
+    function normalizeTargets(value) {
+      if (!Array.isArray(value)) return [];
+      const result = [];
+      for (const raw of value) {
+        const target = {
+          targetId: typeof raw.targetId === "string" ? raw.targetId : "",
+          pagePath: typeof raw.pagePath === "string" ? raw.pagePath : pagePath,
+          selector: typeof raw.selector === "string" ? raw.selector : "",
+          tagName: typeof raw.tagName === "string" ? raw.tagName : "",
+          textFingerprint: typeof raw.textFingerprint === "string" ? raw.textFingerprint : ""
+        };
+        if (!target.selector || result.some(item => sameTarget(item, target))) continue;
+        result.push(target);
+      }
+      return result;
+    }
+
+    function toggleTarget(target) {
+      const index = draftTargets.findIndex(item => sameTarget(item, target));
+      if (index >= 0) {
+        draftTargets.splice(index, 1);
+      } else {
+        draftTargets.push(target);
+      }
+      lastAction = `toggle-to-${draftTargets.length}`;
+      renderDraftBoxes();
+      post({
+        type: "draft-targets-change",
+        draftTargets,
+        target
+      });
+      reportDebug();
+    }
+
+    function renderDraftBoxes() {
+      let layer = document.getElementById("annotationLayer");
+      if (!layer) {
+        layer = document.createElement("div");
+        layer.id = "annotationLayer";
+        document.body.appendChild(layer);
+      }
+      layer.innerHTML = "";
+      draftTargets.forEach((target, index) => {
+        const element = document.querySelector(target.selector);
+        if (!element) return;
+        const rect = element.getBoundingClientRect();
+        if (rect.width < 2 || rect.height < 2) return;
+        const box = document.createElement("div");
+        box.className = "draft-box";
+        box.style.left = `${rect.left - 2 + index * 2}px`;
+        box.style.top = `${rect.top - 2 + index * 2}px`;
+        box.style.width = `${Math.max(8, rect.width + 4)}px`;
+        box.style.height = `${Math.max(8, rect.height + 4)}px`;
+        const label = document.createElement("div");
+        label.className = "draft-label";
+        label.textContent = `Draft DOM-${index + 1}`;
+        box.appendChild(label);
+        layer.appendChild(box);
+      });
+    }
+
+    window.addEventListener("message", event => {
+      const data = event.data || {};
+      lastParentMessage = data.type || "-";
+      if (data.type === "set-mode") {
+        annotationMode = data.mode === "annotate";
+        document.body.dataset.mode = annotationMode ? "annotate" : "browse";
+        lastAction = `mode:${data.mode}`;
+        reportDebug();
+        return;
+      }
+      if (data.type === "sync-draft-targets") {
+        draftTargets = normalizeTargets(data.draftTargets);
+        lastAction = `sync-to-${draftTargets.length}`;
+        renderDraftBoxes();
+        reportDebug();
+      }
+    });
+
+    document.addEventListener("click", event => {
+      if (!annotationMode) return;
+      const target = event.target instanceof Element ? event.target.closest("[data-ann-target]") : null;
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      toggleTarget(targetFromElement(target));
+    }, true);
+
+    window.addEventListener("scroll", renderDraftBoxes, true);
+    window.addEventListener("resize", renderDraftBoxes);
+
+    initTargets();
+    post({ type: "child-ready" });
+    reportDebug();
+  </script>
+</body>
+</html>

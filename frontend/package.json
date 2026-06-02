@@ -1,0 +1,23 @@
+{
+  "name": "ssf-autodesign-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@lucide/vue": "latest",
+    "@vitejs/plugin-vue": "latest",
+    "markdown-it": "^14.2.0",
+    "typescript": "latest",
+    "vite": "latest",
+    "vue": "latest"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "vue-tsc": "latest"
+  }
+}

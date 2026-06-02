@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Iframe Annotation Toggle Repro</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #f5f7f4;
+      color: #17211c;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 260px minmax(560px, 1fr) 360px;
+      height: 100vh;
+    }
+
+    aside,
+    main,
+    section {
+      min-width: 0;
+      padding: 16px;
+      overflow: auto;
+    }
+
+    aside,
+    section {
+      background: #ffffff;
+      border-color: #dce4dc;
+    }
+
+    aside {
+      border-right: 1px solid #dce4dc;
+    }
+
+    section {
+      border-left: 1px solid #dce4dc;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0 0 10px;
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: #5d6a62;
+      line-height: 1.5;
+    }
+
+    button {
+      min-height: 36px;
+      border: 1px solid #cbd6cc;
+      border-radius: 7px;
+      background: #ffffff;
+      color: #1d2a23;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    button:hover {
+      border-color: #8fa697;
+      background: #f3f7f4;
+    }
+
+    button.active {
+      border-color: #1f6f5b;
+      background: #e5f3ed;
+      color: #174f43;
+    }
+
+    .sidebar-stack,
+    .toolbar,
+    .list,
+    .debug-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .toolbar {
+      grid-template-columns: repeat(4, max-content);
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    iframe {
+      width: 100%;
+      height: calc(100vh - 120px);
+      border: 1px solid #cbd6cc;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .draft-item {
+      display: grid;
+      grid-template-columns: 1fr max-content;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid #dce4dc;
+      border-radius: 8px;
+      background: #fbfcfa;
+    }
+
+    .draft-item small {
+      display: block;
+      margin-top: 3px;
+      color: #69776e;
+      word-break: break-all;
+    }
+
+    .debug-grid {
+      grid-template-columns: 128px 1fr;
+      margin-top: 14px;
+      padding: 12px;
+      border: 1px solid #dce4dc;
+      border-radius: 8px;
+      background: #fbfcfa;
+      font-size: 13px;
+    }
+
+    .debug-grid dt {
+      color: #64726a;
+      font-weight: 700;
+    }
+
+    .debug-grid dd {
+      margin: 0;
+      min-width: 0;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <h1>Parent Shell</h1>
+      <p>模拟左侧菜单树。点击 iframe DOM 后，这些按钮仍应能切换。</p>
+      <div class="sidebar-stack">
+        <button id="resourceBtn" type="button">资源管理</button>
+        <button id="previewBtn" type="button">需求预览</button>
+        <button id="annotationBtn" type="button" class="active">原型标注</button>
+      </div>
+    </aside>
+
+    <main>
+      <div class="toolbar">
+        <button id="browseBtn" type="button">浏览</button>
+        <button id="annotateBtn" type="button" class="active">标注</button>
+        <button id="syncBtn" type="button">回灌当前列表</button>
+        <button id="clearBtn" type="button">清空</button>
+      </div>
+      <iframe id="prototypeFrame" src="./child.html"></iframe>
+    </main>
+
+    <section>
+      <h2>待保存 DOM</h2>
+      <p id="viewText">当前视图：原型标注</p>
+      <div id="draftList" class="list"></div>
+
+      <dl class="debug-grid">
+        <dt>父页面视图</dt>
+        <dd id="debugView">annotation</dd>
+        <dt>父页面模式</dt>
+        <dd id="debugMode">annotate</dd>
+        <dt>父页面 draft</dt>
+        <dd id="debugParentDraft">0</dd>
+        <dt>iframe 模式</dt>
+        <dd id="debugChildMode">-</dd>
+        <dt>iframe draft</dt>
+        <dd id="debugChildDraft">0</dd>
+        <dt>最近 parent -> iframe</dt>
+        <dd id="debugParentToChild">-</dd>
+        <dt>最近 iframe -> parent</dt>
+        <dd id="debugChildToParent">-</dd>
+        <dt>最近动作</dt>
+        <dd id="debugAction">-</dd>
+      </dl>
+    </section>
+  </div>
+
+  <script>
+    const frame = document.getElementById("prototypeFrame");
+    const state = {
+      view: "annotation",
+      mode: "annotate",
+      draftTargets: [],
+      parentToChild: "-",
+      childToParent: "-",
+      action: "-",
+      childDebug: {
+        mode: "-",
+        draftCount: 0
+      }
+    };
+
+    function sameTarget(left, right) {
+      if (!left || !right || left.pagePath !== right.pagePath) return false;
+      if (left.targetId && right.targetId && left.targetId === right.targetId) return true;
+      return !!left.selector && !!right.selector && left.selector === right.selector;
+    }
+
+    function normalizeTargets(value) {
+      if (!Array.isArray(value)) return [];
+      const result = [];
+      for (const raw of value) {
+        const target = {
+          targetId: typeof raw.targetId === "string" ? raw.targetId : "",
+          pagePath: typeof raw.pagePath === "string" ? raw.pagePath : "child.html",
+          selector: typeof raw.selector === "string" ? raw.selector : "",
+          tagName: typeof raw.tagName === "string" ? raw.tagName : "",
+          textFingerprint: typeof raw.textFingerprint === "string" ? raw.textFingerprint : ""
+        };
+        if (!target.selector || result.some(item => sameTarget(item, target))) continue;
+        result.push(target);
+      }
+      return result;
+    }
+
+    function postToChild(message) {
+      state.parentToChild = message.type;
+      frame.contentWindow?.postMessage(message, "*");
+      render();
+    }
+
+    function setMode(mode) {
+      state.mode = mode;
+      state.action = `set-mode:${mode}`;
+      postToChild({ type: "set-mode", mode });
+      render();
+    }
+
+    function syncDraftTargets(targets = state.draftTargets) {
+      state.draftTargets = normalizeTargets(targets);
+      postToChild({
+        type: "sync-draft-targets",
+        draftTargets: state.draftTargets
+      });
+      render();
+    }
+
+    function switchView(view) {
+      state.view = view;
+      state.action = `switch-view:${view}`;
+      if (view !== "annotation") {
+        state.mode = "browse";
+        state.draftTargets = [];
+        postToChild({ type: "set-mode", mode: "browse" });
+        postToChild({ type: "sync-draft-targets", draftTargets: [] });
+      }
+      render();
+    }
+
+    function removeTarget(target) {
+      state.draftTargets = state.draftTargets.filter(item => !sameTarget(item, target));
+      state.action = `remove-to-${state.draftTargets.length}`;
+      syncDraftTargets(state.draftTargets);
+    }
+
+    function render() {
+      document.getElementById("resourceBtn").classList.toggle("active", state.view === "resources");
+      document.getElementById("previewBtn").classList.toggle("active", state.view === "preview");
+      document.getElementById("annotationBtn").classList.toggle("active", state.view === "annotation");
+      document.getElementById("browseBtn").classList.toggle("active", state.mode === "browse");
+      document.getElementById("annotateBtn").classList.toggle("active", state.mode === "annotate");
+
+      const viewLabels = {
+        resources: "资源管理",
+        preview: "需求预览",
+        annotation: "原型标注"
+      };
+      document.getElementById("viewText").textContent = `当前视图：${viewLabels[state.view] || state.view}`;
+
+      const list = document.getElementById("draftList");
+      list.innerHTML = "";
+      if (!state.draftTargets.length) {
+        const empty = document.createElement("p");
+        empty.textContent = "还没有选择 DOM。";
+        list.appendChild(empty);
+      }
+      state.draftTargets.forEach((target, index) => {
+        const item = document.createElement("article");
+        item.className = "draft-item";
+        const text = document.createElement("div");
+        text.innerHTML = `<strong>${index + 1}. ${target.textFingerprint || target.selector}</strong><small>${target.tagName} · ${target.selector}</small>`;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "删除";
+        button.addEventListener("click", () => removeTarget(target));
+        item.append(text, button);
+        list.appendChild(item);
+      });
+
+      document.getElementById("debugView").textContent = state.view;
+      document.getElementById("debugMode").textContent = state.mode;
+      document.getElementById("debugParentDraft").textContent = String(state.draftTargets.length);
+      document.getElementById("debugChildMode").textContent = state.childDebug.mode;
+      document.getElementById("debugChildDraft").textContent = String(state.childDebug.draftCount);
+      document.getElementById("debugParentToChild").textContent = state.parentToChild;
+      document.getElementById("debugChildToParent").textContent = state.childToParent;
+      document.getElementById("debugAction").textContent = state.action;
+    }
+
+    document.getElementById("resourceBtn").addEventListener("pointerdown", event => {
+      event.preventDefault();
+      switchView("resources");
+    });
+    document.getElementById("previewBtn").addEventListener("pointerdown", event => {
+      event.preventDefault();
+      switchView("preview");
+    });
+    document.getElementById("annotationBtn").addEventListener("pointerdown", event => {
+      event.preventDefault();
+      state.view = "annotation";
+      state.action = "switch-view:annotation";
+      render();
+    });
+    document.getElementById("browseBtn").addEventListener("pointerdown", event => {
+      event.preventDefault();
+      setMode("browse");
+    });
+    document.getElementById("annotateBtn").addEventListener("pointerdown", event => {
+      event.preventDefault();
+      setMode("annotate");
+    });
+    document.getElementById("syncBtn").addEventListener("click", () => syncDraftTargets());
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      state.action = "clear-to-0";
+      syncDraftTargets([]);
+    });
+
+    window.addEventListener("message", event => {
+      const data = event.data || {};
+      if (data.type === "child-ready") {
+        state.childToParent = data.type;
+        postToChild({ type: "set-mode", mode: state.mode });
+        syncDraftTargets(state.draftTargets);
+        return;
+      }
+      if (data.type === "draft-targets-change") {
+        state.childToParent = data.type;
+        state.draftTargets = normalizeTargets(data.draftTargets);
+        state.action = `iframe-toggle-to-${state.draftTargets.length}`;
+        render();
+        return;
+      }
+      if (data.type === "child-debug") {
+        state.childDebug = {
+          mode: data.mode || "-",
+          draftCount: Number.isFinite(data.draftCount) ? data.draftCount : 0
+        };
+        render();
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>

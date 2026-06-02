@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build outputs
+backend/target/
+frontend/dist/
+frontend/.vite/
+frontend/tsconfig.tsbuildinfo
+frontend/src/**/*.js
+
+# env and editor
+.env
+.env.local
+.idea/
+.vscode/
+*.log
+logs/
+runtime-test/
+
+# local runtime
+mysql-data/
+data/
+
+# generated prototype/upload archives
+*.zip
+*.rar

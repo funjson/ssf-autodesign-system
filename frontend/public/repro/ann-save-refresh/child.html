@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ANN Save Refresh Child</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #ffffff;
+      color: #17211c;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body[data-mode="annotate"] [data-ann-target]:hover {
+      outline: 2px solid #e69a25;
+      outline-offset: 2px;
+      cursor: crosshair;
+    }
+
+    h1,
+    h2,
+    p {
+      margin: 0;
+    }
+
+    p {
+      color: #5d6a62;
+      line-height: 1.5;
+    }
+
+    .screen {
+      display: grid;
+      gap: 16px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .hero,
+    .card,
+    .row,
+    button {
+      position: relative;
+    }
+
+    .hero,
+    .card {
+      display: grid;
+      gap: 12px;
+      padding: 18px;
+      border: 1px solid #dce4dc;
+      border-radius: 10px;
+      background: #fbfcfa;
+      box-shadow: 0 10px 24px rgba(25, 36, 30, 0.08);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid #e5ece6;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    button {
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid #a9b8ad;
+      border-radius: 7px;
+      background: #f5f8f5;
+      color: #17211c;
+      font-weight: 700;
+    }
+
+    #overlayLayer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2147483646;
+    }
+
+    .overlay-box {
+      position: fixed;
+      border-radius: 8px;
+      background: rgba(31, 111, 91, 0.1);
+      box-shadow: 0 10px 24px rgba(24, 32, 29, 0.16);
+    }
+
+    .overlay-box.draft {
+      border: 3px solid #1f6f5b;
+    }
+
+    .overlay-box.saved {
+      border: 3px solid #2563eb;
+      background: rgba(37, 99, 235, 0.1);
+    }
+
+    .overlay-label {
+      position: absolute;
+      top: -24px;
+      right: -2px;
+      max-width: 220px;
+      overflow: hidden;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: #1f6f5b;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .overlay-box.saved .overlay-label {
+      background: #2563eb;
+    }
+  </style>
+</head>
+<body data-mode="browse">
+  <main class="screen">
+    <section class="hero" data-ann-target>
+      <h1 data-ann-target>Today Radar</h1>
+      <p data-ann-target>用于验证保存 ANN 后，父页面列表和 iframe 草稿框是否同步刷新。</p>
+      <button data-ann-target type="button">播放今日简报</button>
+    </section>
+
+    <section class="grid">
+      <article class="card" data-ann-target>
+        <h2 data-ann-target>状态卡</h2>
+        <p data-ann-target>这里模拟 SCR-001/CMP-001。</p>
+        <div class="row" data-ann-target>
+          <span data-ann-target>关键更新 3 条</span>
+          <button data-ann-target type="button">查看</button>
+        </div>
+      </article>
+
+      <article class="card" data-ann-target>
+        <h2 data-ann-target>标签管理</h2>
+        <p data-ann-target>这里模拟 SCR-004/CMP-039。</p>
+        <div class="row" data-ann-target>
+          <span data-ann-target>AI / Finance</span>
+          <button data-ann-target type="button">管理</button>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const pagePath = "child.html";
+    let annotationMode = false;
+    let draftTargets = [];
+    let savedAnnotations = [];
+    let activeAnnotationId = "";
+    let nextTargetId = 1;
+    let lastParentMessage = "-";
+    let lastOutboundMessage = "-";
+
+    function post(message) {
+      lastOutboundMessage = message.type;
+      window.parent.postMessage(message, "*");
+    }
+
+    function ensureTargetId(element) {
+      const existing = element.getAttribute("data-ann-id");
+      if (existing) return existing;
+      const id = `dom-${nextTargetId++}`;
+      element.setAttribute("data-ann-id", id);
+      return id;
+    }
+
+    function initTargets() {
+      document.querySelectorAll("[data-ann-target]").forEach(element => ensureTargetId(element));
+    }
+
+    function targetFromElement(element) {
+      const text = (element.innerText || element.textContent || "").trim().replace(/\s+/g, " ").slice(0, 100);
+      const id = ensureTargetId(element);
+      const rect = element.getBoundingClientRect();
+      return {
+        targetId: id,
+        pagePath,
+        selector: `[data-ann-id="${id}"]`,
+        tagName: element.tagName.toLowerCase(),
+        textFingerprint: text,
+        rectX: rect.x,
+        rectY: rect.y,
+        rectWidth: rect.width,
+        rectHeight: rect.height
+      };
+    }
+
+    function sameTarget(left, right) {
+      if (!left || !right || left.pagePath !== right.pagePath) return false;
+      if (left.targetId && right.targetId && left.targetId === right.targetId) return true;
+      return !!left.selector && !!right.selector && left.selector === right.selector;
+    }
+
+    function normalizeTargets(value) {
+      if (!Array.isArray(value)) return [];
+      const result = [];
+      for (const target of value) {
+        if (!target || !target.selector || result.some(item => sameTarget(item, target))) continue;
+        result.push(target);
+      }
+      return result;
+    }
+
+    function toggleTarget(target) {
+      const index = draftTargets.findIndex(item => sameTarget(item, target));
+      if (index >= 0) {
+        draftTargets.splice(index, 1);
+      } else {
+        draftTargets.push(target);
+      }
+      renderOverlays();
+      post({
+        type: "ssf-repro-draft-targets-change",
+        draftTargets: [...draftTargets]
+      });
+      reportDebug("iframe-toggle");
+    }
+
+    function renderBox(target, label, type) {
+      const element = document.querySelector(target.selector);
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      const box = document.createElement("div");
+      box.className = `overlay-box ${type}`;
+      box.style.left = `${rect.left}px`;
+      box.style.top = `${rect.top}px`;
+      box.style.width = `${rect.width}px`;
+      box.style.height = `${rect.height}px`;
+      const tag = document.createElement("div");
+      tag.className = "overlay-label";
+      tag.textContent = label;
+      box.appendChild(tag);
+      return box;
+    }
+
+    function renderOverlays() {
+      let layer = document.getElementById("overlayLayer");
+      if (!layer) {
+        layer = document.createElement("div");
+        layer.id = "overlayLayer";
+        document.body.appendChild(layer);
+      }
+      layer.innerHTML = "";
+      for (const ann of savedAnnotations) {
+        for (const target of ann.targets || []) {
+          if (draftTargets.some(draft => sameTarget(draft, target))) continue;
+          const box = renderBox(target, ann.id, "saved");
+          if (box) layer.appendChild(box);
+        }
+      }
+      for (const target of draftTargets) {
+        const box = renderBox(target, "draft", "draft");
+        if (box) layer.appendChild(box);
+      }
+    }
+
+    function reportDebug(reason) {
+      post({
+        type: "ssf-repro-debug-state",
+        reason,
+        mode: annotationMode ? "annotate" : "browse",
+        draftCount: draftTargets.length,
+        savedCount: savedAnnotations.length,
+        activeAnnotationId,
+        lastParentMessage,
+        lastOutboundMessage
+      });
+    }
+
+    window.addEventListener("message", event => {
+      const data = event.data || {};
+      lastParentMessage = data.type || "-";
+      if (data.type === "ssf-repro-set-mode") {
+        annotationMode = data.mode === "annotate";
+        document.body.dataset.mode = annotationMode ? "annotate" : "browse";
+        reportDebug("mode-updated");
+      }
+      if (data.type === "ssf-repro-sync-state") {
+        draftTargets = normalizeTargets(data.draftTargets);
+        savedAnnotations = Array.isArray(data.annotations) ? data.annotations : [];
+        activeAnnotationId = data.activeAnnotationId || "";
+        renderOverlays();
+        reportDebug("state-synced");
+      }
+    });
+
+    document.addEventListener("click", event => {
+      if (!annotationMode) return;
+      const targetElement = event.target.closest("[data-ann-target]");
+      if (!targetElement) return;
+      event.preventDefault();
+      event.stopPropagation();
+      toggleTarget(targetFromElement(targetElement));
+    }, true);
+
+    window.addEventListener("scroll", renderOverlays, true);
+    window.addEventListener("resize", renderOverlays);
+
+    initTargets();
+    post({ type: "ssf-repro-ready", pagePath });
+    reportDebug("ready");
+  </script>
+</body>
+</html>
+

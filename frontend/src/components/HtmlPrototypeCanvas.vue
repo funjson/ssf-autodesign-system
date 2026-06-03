@@ -82,6 +82,17 @@ const selectedComponent = computed(() => {
 });
 
 const canSaveNew = computed(() => !!screenChoice.value && props.draftTargets.length > 0);
+const annotationSyncKey = computed(() => [
+  props.htmlPackage?.entryPath ?? '',
+  props.selectedBindingId,
+  ...props.bindings.map((binding) => [
+    binding.bindingId,
+    binding.name,
+    binding.screenId,
+    binding.componentId,
+    binding.targets.map((target) => `${target.pagePath}|${target.targetId}|${target.selector}`).join(';')
+  ].join('|'))
+].join('||'));
 
 watch(() => props.graph?.instanceId, () => {
   screenChoice.value = props.graph?.screens[0]?.screenId ?? '';
@@ -115,7 +126,7 @@ watch(() => props.htmlPackage?.entryUrl, () => {
 });
 
 watch(() => props.interactionMode, syncBridgeMode);
-watch(() => [props.bindings, props.selectedBindingId, props.htmlPackage?.entryPath], () => syncBridgeAnnotations(), { deep: true });
+watch(annotationSyncKey, scheduleBridgeAnnotationSync, { flush: 'post' });
 
 onMounted(() => {
   window.addEventListener('message', handleMessage);
@@ -351,6 +362,14 @@ function syncBridgeAnnotations(draftTargets = props.draftTargets) {
     }))
   }, '*');
 }
+
+function scheduleBridgeAnnotationSync() {
+  // ANN changes are driven by async saves. Sending after the Vue flush, then
+  // retrying briefly, prevents a stale iframe from keeping draft-only state.
+  syncBridgeAnnotations();
+  window.setTimeout(() => syncBridgeAnnotations(), 60);
+  window.setTimeout(() => syncBridgeAnnotations(), 180);
+}
 </script>
 
 <template>
@@ -425,8 +444,14 @@ function syncBridgeAnnotations(draftTargets = props.draftTargets) {
               <dd>{{ bridgeDebugState.annotationMode ? 'annotate' : 'browse' }}</dd>
               <dt>父页面 draft</dt>
               <dd>{{ props.draftTargets.length }}</dd>
+              <dt>父页面 ANN</dt>
+              <dd>{{ props.bindings.length }}</dd>
+              <dt>选中 ANN</dt>
+              <dd>{{ props.selectedBindingId || '-' }}</dd>
               <dt>iframe draft</dt>
               <dd>{{ bridgeDebugState.draftTargetCount }}</dd>
+              <dt>iframe ANN</dt>
+              <dd>{{ bridgeDebugState.annotationCount }}</dd>
               <dt>iframe toggle 数</dt>
               <dd>{{ bridgeDebugState.lastDraftChangeCount }}</dd>
               <dt>父回灌 draft</dt>
@@ -439,6 +464,10 @@ function syncBridgeAnnotations(draftTargets = props.draftTargets) {
               <dd>{{ lastDraftAction || '-' }}</dd>
               <dt>toggle selector</dt>
               <dd>{{ bridgeDebugState.lastToggleSelector || '-' }}</dd>
+              <dt>ANN ids</dt>
+              <dd>{{ props.bindings.map((binding) => binding.bindingId).join(', ') || '-' }}</dd>
+              <dt>draft ids</dt>
+              <dd>{{ props.draftTargets.map((target) => target.targetId || target.selector).join(', ') || '-' }}</dd>
               <dt>bridge reason</dt>
               <dd>{{ bridgeDebugState.reason || '-' }}</dd>
             </dl>

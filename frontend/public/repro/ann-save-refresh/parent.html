@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ANN Save Refresh Repro</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #f5f7f4;
+      color: #17211c;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(520px, 1fr) 400px;
+      height: 100vh;
+    }
+
+    main,
+    aside {
+      min-width: 0;
+      padding: 16px;
+      overflow: auto;
+    }
+
+    aside {
+      border-left: 1px solid #dce4dc;
+      background: #ffffff;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    p {
+      color: #5d6a62;
+      line-height: 1.5;
+    }
+
+    button,
+    input,
+    select {
+      min-height: 36px;
+      border: 1px solid #cbd6cc;
+      border-radius: 7px;
+      background: #ffffff;
+      color: #1d2a23;
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    button:hover {
+      border-color: #8fa697;
+      background: #f3f7f4;
+    }
+
+    button.active {
+      border-color: #1f6f5b;
+      background: #e5f3ed;
+      color: #174f43;
+    }
+
+    button.warning {
+      border-color: #d58a1f;
+      background: #fff7e8;
+      color: #8a4d0b;
+    }
+
+    button.primary {
+      border-color: #1f6f5b;
+      background: #1f6f5b;
+      color: #ffffff;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    iframe {
+      width: 100%;
+      height: calc(100vh - 112px);
+      border: 1px solid #cbd6cc;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .toolbar,
+    .panel,
+    .list,
+    .form,
+    .debug-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .toolbar {
+      grid-template-columns: repeat(4, max-content);
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .panel {
+      margin-top: 14px;
+      padding: 12px;
+      border: 1px solid #dce4dc;
+      border-radius: 8px;
+      background: #fbfcfa;
+    }
+
+    .form {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .form label {
+      display: grid;
+      gap: 5px;
+      color: #536259;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .form input,
+    .form select {
+      width: 100%;
+      padding: 0 10px;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .item {
+      display: grid;
+      grid-template-columns: 1fr max-content;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid #dce4dc;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .item small {
+      display: block;
+      margin-top: 3px;
+      color: #69776e;
+      word-break: break-all;
+    }
+
+    .debug-grid {
+      grid-template-columns: 140px 1fr;
+      font-size: 13px;
+    }
+
+    .debug-grid dt {
+      color: #64726a;
+      font-weight: 800;
+    }
+
+    .debug-grid dd {
+      margin: 0;
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    .log {
+      max-height: 120px;
+      overflow: auto;
+      color: #536259;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <main>
+      <div class="toolbar">
+        <button id="browseBtn" type="button">浏览</button>
+        <button id="annotateBtn" type="button" class="active">标注</button>
+        <button id="syncBtn" type="button">手动回灌</button>
+        <button id="resetBtn" type="button">重置 demo</button>
+      </div>
+      <iframe id="prototypeFrame" src="./child.html"></iframe>
+    </main>
+
+    <aside>
+      <h1>ANN 保存刷新 Repro</h1>
+      <p>用于隔离验证：保存 ANN 后，已保存列表是否立即刷新，iframe 草稿框是否清空。</p>
+
+      <section class="panel">
+        <h2>待保存 DOM <span id="draftCount">0</span></h2>
+        <div id="draftList" class="list"></div>
+      </section>
+
+      <section class="panel form">
+        <label>
+          ANN 名称
+          <input id="annNameInput" maxlength="40" placeholder="例如：首页卡片组" />
+        </label>
+        <label>
+          绑定关系
+          <select id="relationSelect">
+            <option value="SCR-001/CMP-001">SCR-001/CMP-001</option>
+            <option value="SCR-004/CMP-039">SCR-004/CMP-039</option>
+            <option value="SCR-001">SCR-001 页面级</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="panel actions">
+        <button id="saveGoodBtn" type="button" class="primary" disabled>新建 ANN（正确刷新）</button>
+        <button id="saveBrokenBtn" type="button" class="warning" disabled>模拟只写后端不刷新</button>
+        <button id="reloadBtn" type="button">从后端重载 ANN</button>
+      </section>
+
+      <section class="panel">
+        <h2>已保存 ANN <span id="annCount">0</span></h2>
+        <div id="annList" class="list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>调试状态</h2>
+        <dl class="debug-grid">
+          <dt>父页面模式</dt>
+          <dd id="debugMode">annotate</dd>
+          <dt>父页面 draft</dt>
+          <dd id="debugParentDraft">0</dd>
+          <dt>iframe draft</dt>
+          <dd id="debugChildDraft">0</dd>
+          <dt>父页面 ANN</dt>
+          <dd id="debugParentAnn">0</dd>
+          <dt>后端 ANN</dt>
+          <dd id="debugBackendAnn">0</dd>
+          <dt>ANN DOM 行</dt>
+          <dd id="debugAnnRows">0</dd>
+          <dt>parent -> iframe</dt>
+          <dd id="debugParentToChild">-</dd>
+          <dt>iframe -> parent</dt>
+          <dd id="debugChildToParent">-</dd>
+          <dt>最近动作</dt>
+          <dd id="debugAction">-</dd>
+        </dl>
+      </section>
+
+      <section class="panel">
+        <h2>操作日志</h2>
+        <div id="logList" class="log"></div>
+      </section>
+    </aside>
+  </div>
+
+  <script>
+    const backendKey = "ssf-repro-ann-save-refresh-backend";
+    const frame = document.getElementById("prototypeFrame");
+    const state = {
+      mode: "annotate",
+      draftTargets: [],
+      annotations: [],
+      activeAnnotationId: "",
+      parentToChild: "-",
+      childToParent: "-",
+      childDebug: {
+        draftCount: 0
+      },
+      action: "-",
+      logs: []
+    };
+
+    function backendRead() {
+      try {
+        return JSON.parse(localStorage.getItem(backendKey) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function backendWrite(annotations) {
+      localStorage.setItem(backendKey, JSON.stringify(annotations));
+    }
+
+    function nextAnnId(annotations) {
+      const max = annotations
+        .map(item => item.id || "")
+        .filter(id => id.startsWith("ANN-"))
+        .map(id => Number(id.slice(4)))
+        .filter(Number.isFinite)
+        .reduce((left, right) => Math.max(left, right), 0);
+      return `ANN-${String(max + 1).padStart(3, "0")}`;
+    }
+
+    function postToChild(message) {
+      state.parentToChild = message.type;
+      frame.contentWindow?.postMessage(message, "*");
+      render();
+    }
+
+    function log(message) {
+      state.logs.unshift(`${new Date().toLocaleTimeString()} ${message}`);
+      state.logs = state.logs.slice(0, 10);
+      render();
+    }
+
+    function syncStateToChild() {
+      postToChild({
+        type: "ssf-repro-sync-state",
+        draftTargets: state.draftTargets,
+        annotations: state.annotations,
+        activeAnnotationId: state.activeAnnotationId
+      });
+    }
+
+    function setMode(mode) {
+      state.mode = mode;
+      state.action = `set-mode:${mode}`;
+      postToChild({ type: "ssf-repro-set-mode", mode });
+      render();
+    }
+
+    function reloadFromBackend() {
+      state.annotations = backendRead();
+      state.action = "reload-backend";
+      syncStateToChild();
+      log(`从后端重载 ${state.annotations.length} 个 ANN`);
+      render();
+    }
+
+    function buildAnn() {
+      const backendAnnotations = backendRead();
+      const id = nextAnnId(backendAnnotations);
+      const relation = document.getElementById("relationSelect").value;
+      const [screenId, componentId = ""] = relation.split("/");
+      return {
+        id,
+        name: document.getElementById("annNameInput").value.trim() || id,
+        screenId,
+        componentId,
+        targets: [...state.draftTargets]
+      };
+    }
+
+    function saveWithRefresh() {
+      if (!state.draftTargets.length) return;
+      const ann = buildAnn();
+      const backendAnnotations = [...backendRead(), ann];
+      backendWrite(backendAnnotations);
+      state.annotations = backendRead();
+      state.activeAnnotationId = ann.id;
+      state.draftTargets = [];
+      state.action = "save-refresh";
+      syncStateToChild();
+      log(`${ann.id} 已保存并刷新父页面列表`);
+      render();
+    }
+
+    function saveWithoutRefresh() {
+      if (!state.draftTargets.length) return;
+      const ann = buildAnn();
+      backendWrite([...backendRead(), ann]);
+      state.activeAnnotationId = ann.id;
+      state.draftTargets = [];
+      state.action = "save-no-refresh";
+      syncStateToChild();
+      log(`${ann.id} 已写入后端，但故意不刷新父页面 ANN 列表`);
+      render();
+    }
+
+    function removeDraft(targetId) {
+      state.draftTargets = state.draftTargets.filter(target => target.targetId !== targetId);
+      state.action = `remove-draft:${targetId}`;
+      syncStateToChild();
+      render();
+    }
+
+    function renderDraftList() {
+      const container = document.getElementById("draftList");
+      container.innerHTML = "";
+      if (!state.draftTargets.length) {
+        container.innerHTML = "<p>还没有选择 DOM。</p>";
+        return;
+      }
+      for (const target of state.draftTargets) {
+        const item = document.createElement("article");
+        item.className = "item";
+        item.innerHTML = `
+          <div>
+            <strong>${target.textFingerprint || target.selector}</strong>
+            <small>${target.tagName} · ${target.selector}</small>
+          </div>
+          <button type="button" data-remove="${target.targetId}">移除</button>
+        `;
+        container.appendChild(item);
+      }
+      container.querySelectorAll("[data-remove]").forEach(button => {
+        button.addEventListener("click", () => removeDraft(button.dataset.remove));
+      });
+    }
+
+    function renderAnnList() {
+      const container = document.getElementById("annList");
+      container.innerHTML = "";
+      if (!state.annotations.length) {
+        container.innerHTML = "<p>暂无保存记录。</p>";
+        return;
+      }
+      for (const ann of state.annotations) {
+        const item = document.createElement("article");
+        item.className = "item";
+        item.dataset.annId = ann.id;
+        item.innerHTML = `
+          <div>
+            <strong>${ann.name || ann.id}</strong>
+            <small>${ann.id} · ${ann.screenId}${ann.componentId ? "/" + ann.componentId : ""} · ${(ann.targets || []).length} DOM</small>
+          </div>
+          <button type="button" data-select="${ann.id}">选中</button>
+        `;
+        container.appendChild(item);
+      }
+      container.querySelectorAll("[data-select]").forEach(button => {
+        button.addEventListener("click", () => {
+          state.activeAnnotationId = button.dataset.select;
+          state.action = `select-ann:${state.activeAnnotationId}`;
+          syncStateToChild();
+          render();
+        });
+      });
+    }
+
+    function renderDebug() {
+      document.getElementById("debugMode").textContent = state.mode;
+      document.getElementById("debugParentDraft").textContent = state.draftTargets.length;
+      document.getElementById("debugChildDraft").textContent = state.childDebug.draftCount;
+      document.getElementById("debugParentAnn").textContent = state.annotations.length;
+      document.getElementById("debugBackendAnn").textContent = backendRead().length;
+      document.getElementById("debugAnnRows").textContent = document.querySelectorAll("#annList [data-ann-id]").length;
+      document.getElementById("debugParentToChild").textContent = state.parentToChild;
+      document.getElementById("debugChildToParent").textContent = state.childToParent;
+      document.getElementById("debugAction").textContent = state.action;
+      document.getElementById("logList").innerHTML = state.logs.map(item => `<div>${item}</div>`).join("");
+    }
+
+    function render() {
+      document.getElementById("browseBtn").classList.toggle("active", state.mode === "browse");
+      document.getElementById("annotateBtn").classList.toggle("active", state.mode === "annotate");
+      document.getElementById("draftCount").textContent = state.draftTargets.length;
+      document.getElementById("annCount").textContent = state.annotations.length;
+      document.getElementById("saveGoodBtn").disabled = !state.draftTargets.length;
+      document.getElementById("saveBrokenBtn").disabled = !state.draftTargets.length;
+      renderDraftList();
+      renderAnnList();
+      renderDebug();
+    }
+
+    window.addEventListener("message", event => {
+      const data = event.data || {};
+      state.childToParent = data.type || "-";
+      if (data.type === "ssf-repro-ready") {
+        state.action = "iframe-ready";
+        setMode(state.mode);
+        syncStateToChild();
+      }
+      if (data.type === "ssf-repro-draft-targets-change") {
+        state.draftTargets = Array.isArray(data.draftTargets) ? data.draftTargets : [];
+        state.action = `draft-change:${state.draftTargets.length}`;
+        render();
+      }
+      if (data.type === "ssf-repro-debug-state") {
+        state.childDebug = data;
+        render();
+      }
+    });
+
+    document.getElementById("browseBtn").addEventListener("click", () => setMode("browse"));
+    document.getElementById("annotateBtn").addEventListener("click", () => setMode("annotate"));
+    document.getElementById("syncBtn").addEventListener("click", syncStateToChild);
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      localStorage.removeItem(backendKey);
+      state.draftTargets = [];
+      state.annotations = [];
+      state.activeAnnotationId = "";
+      state.action = "reset";
+      syncStateToChild();
+      render();
+    });
+    document.getElementById("saveGoodBtn").addEventListener("click", saveWithRefresh);
+    document.getElementById("saveBrokenBtn").addEventListener("click", saveWithoutRefresh);
+    document.getElementById("reloadBtn").addEventListener("click", reloadFromBackend);
+
+    state.annotations = backendRead();
+    render();
+  </script>
+</body>
+</html>
+

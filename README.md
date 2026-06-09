@@ -1,3 +1,5 @@
+# Railway体验地址
+[体验地址](https://frontend-production-c12b.up.railway.app/)
 # SSF Autodesign
 
 SSF Autodesign 是一个面向 AI 软件研发流程的本地产品设计工作台。它把 `ssf-product-pm` Skill 生成的结构化产品设计文档、原型生成输入包、需求原型和后续变更请求连接起来，让用户可以一边看需求和原型，一边把修改意图沉淀回结构化文件。

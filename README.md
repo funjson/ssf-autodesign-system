@@ -24,27 +24,26 @@ demo/ssf-workspace
 docker compose up --build
 ```
 
+如果拉取基础镜像较慢或失败，请先在 Docker Desktop 中配置代理，或在当前终端设置 `HTTP_PROXY` / `HTTPS_PROXY` 后再执行构建命令。
+
 启动后访问：
 
 ```text
 http://localhost:5173
 ```
 
-默认端口：
+默认只暴露前端端口：
 
 ```text
 frontend: http://localhost:5173
-backend:  http://localhost:8080
-mysql:    localhost:3306
 ```
 
-如果端口冲突，可以覆盖端口：
+前端容器使用 Nginx 托管静态资源，并把 `/api` 代理到 Docker 内部网络里的后端服务。后端和 MySQL 默认不暴露到宿主机，这样 Windows 和 Mac 上都可以用同一条命令启动，端口冲突也更少。
+
+如果前端端口冲突，可以覆盖端口：
 
 ```powershell
 $env:FRONTEND_PORT="5174"
-$env:BACKEND_PORT="8081"
-$env:MYSQL_PORT="3307"
-$env:VITE_API_BASE_URL="http://localhost:8081/api"
 docker compose up --build
 ```
 
@@ -79,7 +78,7 @@ ssf-product-pm Skill 产物
 
 ## 技术栈
 
-- 前端：Vue 3、TypeScript、Vite、Markdown 渲染、iframe 原型标注桥接。
+- 前端：Vue 3、TypeScript、Vite、Nginx 静态托管、Markdown 渲染、iframe 原型标注桥接。
 - 后端：Java 21、Spring Boot、Spring Data JPA、MySQL。
 - 原型资源：HTML 原型包、图片原型、`layer-map.json` ANN 标注数据。
 - 运行方式：本地开发模式或 Docker Compose 演示模式。
@@ -114,10 +113,12 @@ ssf.demo.workspace-path: ../demo/ssf-workspace
 
 ## 本地开发启动
 
+如果只需要本地开发，建议使用开发覆盖文件暴露 MySQL 和后端端口：
+
 启动 MySQL：
 
 ```powershell
-docker compose up -d mysql
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d mysql
 ```
 
 启动后端：
@@ -155,6 +156,12 @@ Docker 配置检查：
 
 ```powershell
 docker compose config
+```
+
+开发覆盖配置检查：
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml config
 ```
 
 ## Git 提交约定

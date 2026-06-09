@@ -44,6 +44,8 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-http://backend:8080}
     ports:
       - "${FRONTEND_PORT:-5173}:80"
 

@@ -38,13 +38,27 @@ http://localhost:5173
 frontend: http://localhost:5173
 ```
 
-前端容器使用 Nginx 托管静态资源，并把 `/api` 代理到 Docker 内部网络里的后端服务。后端和 MySQL 默认不暴露到宿主机，这样 Windows 和 Mac 上都可以用同一条命令启动，端口冲突也更少。
+前端容器使用 Nginx 托管静态资源，并把 `/api` 代理到运行时环境变量 `BACKEND_UPSTREAM` 指向的后端服务。默认值是 `http://backend:8080`，适用于本地 Docker Compose。后端和 MySQL 默认不暴露到宿主机，这样 Windows 和 Mac 上都可以用同一条命令启动，端口冲突也更少。
 
 如果前端端口冲突，可以覆盖端口：
 
 ```powershell
 $env:FRONTEND_PORT="5174"
 docker compose up --build
+```
+
+如果部署平台的后端服务地址不同，可以覆盖 Nginx 上游：
+
+```powershell
+$env:BACKEND_UPSTREAM="http://backend.railway.internal:8080"
+docker compose up --build
+```
+
+Railway 部署时，在 frontend service 的 Variables 中配置：
+
+```properties
+BACKEND_UPSTREAM=http://<backend-service-name>.railway.internal:8080
+VITE_API_BASE_URL=/api
 ```
 
 重置演示数据库和容器数据：
@@ -78,7 +92,7 @@ ssf-product-pm Skill 产物
 
 ## 技术栈
 
-- 前端：Vue 3、TypeScript、Vite、Nginx 静态托管、Markdown 渲染、iframe 原型标注桥接。
+- 前端：Vue 3、TypeScript、Vite、Nginx 静态托管、Nginx template 环境变量注入、Markdown 渲染、iframe 原型标注桥接。
 - 后端：Java 21、Spring Boot、Spring Data JPA、MySQL。
 - 原型资源：HTML 原型包、图片原型、`layer-map.json` ANN 标注数据。
 - 运行方式：本地开发模式或 Docker Compose 演示模式。

@@ -9,7 +9,7 @@ services:
       MYSQL_PASSWORD: ssf_password
       MYSQL_ROOT_PASSWORD: root_password
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -23,7 +23,6 @@ services:
       context: ./backend
     container_name: ssf-autodesign-backend
     restart: unless-stopped
-    profiles: ["full"]
     depends_on:
       mysql:
         condition: service_healthy
@@ -31,23 +30,27 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ssf_autodesign?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       SPRING_DATASOURCE_USERNAME: ssf
       SPRING_DATASOURCE_PASSWORD: ssf_password
+      SSF_DATA_ROOT: /data
+      SSF_DEMO_ENABLED: "true"
+      SSF_DEMO_WORKSPACE_PATH: /demo/ssf-workspace
     ports:
-      - "8080:8080"
+      - "${BACKEND_PORT:-8080}:8080"
     volumes:
-      - C:/Users/funjson/Documents:/host/Documents
+      - app-data:/data
+      - ./demo:/demo
 
   frontend:
     build:
       context: ./frontend
     container_name: ssf-autodesign-frontend
     restart: unless-stopped
-    profiles: ["full"]
     depends_on:
       - backend
     environment:
-      VITE_API_BASE_URL: http://localhost:8080/api
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
     ports:
-      - "5173:5173"
+      - "${FRONTEND_PORT:-5173}:5173"
 
 volumes:
+  app-data:
   mysql-data:

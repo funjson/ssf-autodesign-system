@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>每日新闻 App - 高保真原型</title>
+<script src="https://modao.cc/agent-py/static/source/js/tailwindcss.js"></script>
+<script src="https://modao.cc/agent-py/static/source/js/iconify-icon.min.js"></script>
+<style>
+        body {
+            background-color: #F3F4F6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        .phone-container {
+            width: 375px;
+            height: 812px;
+            background-color: #F8F9FA;
+            border: 8px solid #1F2937;
+            border-radius: 40px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        .safe-area-top { height: 44px; }
+        .safe-area-bottom { height: 34px; }
+        .content-area {
+            height: calc(812px - 44px - 34px - 64px); /* 减去顶部安全区、底部安全区和底部导航栏 */
+            overflow-y: auto;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .content-area::-webkit-scrollbar { display: none; }
+        
+        .page-transition {
+            transition: all 0.3s ease-in-out;
+        }
+        
+        .tag-excluded {
+            position: relative;
+            color: #EF4444;
+            border-color: #EF4444;
+        }
+        .tag-excluded::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background-color: #EF4444;
+            transform: rotate(-15deg);
+        }
+
+        /* 骨架屏动画 */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .animate-pulse-custom {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body>
+<div class="phone-container flex flex-col">
+<!-- 顶部状态栏模拟 -->
+<div class="safe-area-top flex justify-between items-center px-6 pt-2 z-50 relative">
+<span class="text-xs font-semibold">09:41</span>
+<div class="flex space-x-1">
+<iconify-icon class="text-sm" icon="mdi:signal"></iconify-icon>
+<iconify-icon class="text-sm" icon="mdi:wifi"></iconify-icon>
+<iconify-icon class="text-sm" icon="mdi:battery"></iconify-icon>
+</div>
+</div>
+<!-- 页面容器 -->
+<div class="relative w-full flex-1" id="app-pages">
+<!-- SCR-001 兴趣初始化页 -->
+<div class="page absolute inset-0 bg-white z-40 page-transition" id="scr-001">
+<div class="px-6 pt-10">
+<h1 class="text-2xl font-bold text-gray-900 mb-2">选几个你关心的主题</h1>
+<p class="text-gray-500 mb-8">之后可以随时调整</p>
+<!-- 搜索框 -->
+<div class="relative mb-6">
+<iconify-icon class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" icon="mdi:magnify"></iconify-icon>
+<input class="w-full bg-gray-100 border-none rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500" placeholder="搜索感兴趣的主题" type="text"/>
+</div>
+<!-- 标签网格 -->
+<div class="grid grid-cols-3 gap-3 mb-10" id="onboarding-tags">
+<!-- 动态生成标签 -->
+</div>
+<div class="space-y-4">
+<button class="w-full bg-[#3B82F6] text-white font-semibold py-3 rounded-xl shadow-lg active:scale-95 transition-transform" onclick="completeOnboarding()">完成</button>
+<button class="w-full text-gray-500 text-sm font-medium py-2" onclick="completeOnboarding()">跳过，先看看</button>
+</div>
+</div>
+</div>
+<!-- SCR-002 今日简报页 -->
+<div class="page absolute inset-0 bg-[#F8F9FA] z-30 page-transition hidden h-full flex flex-col overflow-hidden" id="scr-002">
+<!-- 固定顶部区域 -->
+<div class="flex-shrink-0 px-4 pt-6">
+<div class="flex justify-between items-end mb-4">
+<div>
+<p class="text-xs text-gray-500 font-medium uppercase tracking-wider">5月27日 星期三</p>
+<h1 class="text-2xl font-bold text-gray-900">今日简报</h1>
+</div>
+<div class="bg-blue-50 text-[#3B82F6] text-[10px] px-2 py-1 rounded font-bold">示例数据</div>
+</div>
+<div class="bg-white rounded-xl p-4 mb-6 border border-gray-100 shadow-sm">
+<p class="text-sm text-gray-700 leading-relaxed italic">“今日全球焦点集中在金融政策调整与前沿科技突破，预计阅读时间 5 分钟。”</p>
+</div>
+</div>
+<!-- 中间可滚动内容区 -->
+<div class="flex-1 overflow-y-auto px-4 pb-20 -webkit-overflow-scrolling:touch" style="scrollbar-width: thin;">
+<!-- 骨架屏 -->
+<div class="space-y-4" id="skeleton-briefing">
+<div class="bg-white rounded-lg p-4 border border-gray-100 animate-pulse-custom">
+<div class="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
+<div class="h-3 bg-gray-100 rounded w-full mb-2"></div>
+<div class="h-3 bg-gray-100 rounded w-5/6 mb-4"></div>
+<div class="flex justify-between">
+<div class="h-3 bg-gray-100 rounded w-20"></div>
+<div class="h-3 bg-gray-100 rounded w-12"></div>
+</div>
+</div>
+<div class="bg-white rounded-lg p-4 border border-gray-100 animate-pulse-custom">
+<div class="h-4 bg-gray-200 rounded w-2/3 mb-3"></div>
+<div class="h-3 bg-gray-100 rounded w-full mb-2"></div>
+<div class="h-3 bg-gray-100 rounded w-1/2 mb-4"></div>
+<div class="flex justify-between">
+<div class="h-3 bg-gray-100 rounded w-20"></div>
+<div class="h-3 bg-gray-100 rounded w-12"></div>
+</div>
+</div>
+</div>
+<!-- 新闻列表 -->
+<div class="space-y-4 hidden" id="news-list">
+<!-- 动态生成新闻卡片 -->
+</div>
+</div>
+</div>
+<!-- SCR-003 标签管理页 -->
+<div class="page absolute inset-0 bg-white z-50 page-transition hidden" id="scr-003">
+<div class="px-4 pt-6">
+<div class="flex items-center mb-6">
+<button class="p-2 -ml-2" onclick="goBack()">
+<iconify-icon class="text-2xl text-gray-900" icon="mdi:chevron-left"></iconify-icon>
+</button>
+<h1 class="text-lg font-bold flex-1 text-center mr-8">管理标签</h1>
+</div>
+<div class="space-y-8">
+<section>
+<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">当前关注</h2>
+<div class="flex flex-wrap gap-2" id="selected-tags-manage">
+<!-- 已选标签 -->
+</div>
+</section>
+<section>
+<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">推荐添加</h2>
+<div class="flex flex-wrap gap-2" id="recommend-tags-manage">
+<!-- 推荐标签 -->
+</div>
+</section>
+<section>
+<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">已排除</h2>
+<div class="flex flex-wrap gap-2" id="excluded-tags-manage">
+<!-- 排除标签 -->
+</div>
+</section>
+</div>
+<div class="absolute bottom-10 left-4 right-4">
+<button class="w-full bg-[#3B82F6] text-white font-semibold py-3 rounded-xl shadow-lg" onclick="saveTags()">保存更改</button>
+</div>
+</div>
+</div>
+<!-- SCR-004 事件详情页 -->
+<div class="page absolute inset-0 bg-white z-50 page-transition hidden" id="scr-004">
+<div class="h-full flex flex-col">
+<div class="px-4 pt-4 flex justify-between items-center border-b border-gray-50 pb-4">
+<button class="p-2 -ml-2" onclick="goBack()">
+<iconify-icon class="text-2xl text-gray-900" icon="mdi:arrow-left"></iconify-icon>
+</button>
+<div class="flex space-x-4">
+<button class="p-2" id="detail-save-btn" onclick="toggleSaveCurrentNews()">
+<iconify-icon class="text-2xl text-gray-600" icon="mdi:bookmark-outline"></iconify-icon>
+</button>
+<button class="p-2">
+<iconify-icon class="text-2xl text-gray-600" icon="mdi:share-variant-outline"></iconify-icon>
+</button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto px-6 pt-6 pb-10">
+<div id="detail-content">
+<!-- 详情内容动态加载 -->
+</div>
+<div class="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-100">
+<h4 class="text-xs font-bold text-gray-400 uppercase mb-3">来源透明</h4>
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-400">
+<iconify-icon class="text-xl" icon="mdi:newspaper-variant"></iconify-icon>
+</div>
+<div>
+<p class="text-sm font-bold text-gray-900" id="detail-source-name"></p>
+<p class="text-xs text-gray-500" id="detail-time"></p>
+</div>
+</div>
+<button class="text-[#3B82F6] text-sm font-semibold">查看原文</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- SCR-005 保存与历史页 -->
+<div class="page absolute inset-0 bg-[#F8F9FA] z-30 page-transition hidden h-full flex flex-col overflow-hidden" id="scr-005">
+<!-- 固定顶部区域 -->
+<div class="flex-shrink-0 px-4 pt-6">
+<h1 class="text-2xl font-bold text-gray-900 mb-6 px-2">保存与历史</h1>
+<!-- Segmented Control -->
+<div class="flex bg-gray-200 p-1 rounded-xl mb-6 mx-2">
+<button class="flex-1 py-2 text-sm font-semibold rounded-lg bg-white shadow-sm text-gray-900 transition-all" id="tab-btn-saved" onclick="switchSavedTab('saved')">已保存</button>
+<button class="flex-1 py-2 text-sm font-semibold rounded-lg text-gray-500 transition-all" id="tab-btn-history" onclick="switchSavedTab('history')">最近浏览</button>
+</div>
+</div>
+<!-- 中间可滚动内容区 -->
+<div class="flex-1 overflow-y-auto px-4 pb-20 -webkit-overflow-scrolling:touch" style="scrollbar-width: thin;">
+<div class="space-y-4" id="saved-content-list">
+<!-- 列表内容 -->
+</div>
+<div class="hidden flex flex-col items-center justify-center pt-20" id="saved-empty-state">
+<div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+<iconify-icon class="text-4xl text-gray-300" icon="mdi:bookmark-multiple-outline"></iconify-icon>
+</div>
+<p class="text-gray-500 mb-6">还没有保存的内容</p>
+<button class="bg-[#3B82F6] text-white px-6 py-2 rounded-full font-semibold shadow-md" onclick="switchTab('briefing')">去看看今日简报</button>
+</div>
+</div>
+</div>
+<!-- SCR-006 设置与隐私页 -->
+<div class="page absolute inset-0 bg-[#F8F9FA] z-30 page-transition hidden h-full flex flex-col overflow-hidden" id="scr-006">
+<!-- 固定顶部区域 -->
+<div class="flex-shrink-0 px-4 pt-6">
+<h1 class="text-2xl font-bold text-gray-900 mb-6 px-2">设置与隐私</h1>
+</div>
+<!-- 中间可滚动内容区 -->
+<div class="flex-1 overflow-y-auto px-4 pb-20 -webkit-overflow-scrolling:touch" style="scrollbar-width: thin;">
+<div class="space-y-6">
+<!-- 通知设置 -->
+<section class="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+<div class="px-4 py-3 border-b border-gray-50 bg-gray-50/50">
+<h3 class="text-xs font-bold text-gray-400 uppercase">通知设置</h3>
+</div>
+<div class="divide-y divide-gray-50">
+<div class="px-4 py-4 flex justify-between items-center">
+<span class="text-sm font-medium text-gray-700">每日简报推送</span>
+<div class="w-10 h-6 bg-blue-500 rounded-full relative">
+<div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm"></div>
+</div>
+</div>
+<div class="px-4 py-4 flex justify-between items-center">
+<span class="text-sm font-medium text-gray-700">推送时间段</span>
+<span class="text-sm text-blue-500 font-medium">08:00 - 22:00</span>
+</div>
+</div>
+</section>
+<!-- 个性化 -->
+<section class="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+<div class="px-4 py-3 border-b border-gray-50 bg-gray-50/50">
+<h3 class="text-xs font-bold text-gray-400 uppercase">个性化体验</h3>
+</div>
+<div class="divide-y divide-gray-50">
+<button class="w-full px-4 py-4 flex justify-between items-center active:bg-gray-50" onclick="switchPage('scr-003')">
+<span class="text-sm font-medium text-gray-700">管理兴趣标签</span>
+<iconify-icon class="text-gray-400" icon="mdi:chevron-right"></iconify-icon>
+</button>
+<div class="px-4 py-4 flex justify-between items-center">
+<span class="text-sm font-medium text-gray-700">显示推荐理由</span>
+<div class="w-10 h-6 bg-blue-500 rounded-full relative">
+<div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm"></div>
+</div>
+</div>
+<div class="px-4 py-4 flex justify-between items-center">
+<span class="text-sm font-medium text-gray-700">来源透明标签</span>
+<div class="w-10 h-6 bg-gray-300 rounded-full relative">
+<div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- 隐私与危险操作 -->
+<section class="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+<div class="px-4 py-3 border-b border-gray-50 bg-gray-50/50">
+<h3 class="text-xs font-bold text-gray-400 uppercase">隐私与数据</h3>
+</div>
+<div class="divide-y divide-gray-50">
+<button class="w-full px-4 py-4 flex justify-between items-center active:bg-red-50" onclick="confirmClear()">
+<span class="text-sm font-medium text-red-500">清除所有偏好设置</span>
+<iconify-icon class="text-red-400" icon="mdi:delete-outline"></iconify-icon>
+</button>
+</div>
+</section>
+</div>
+</div>
+</div>
+<!-- 底部 Tab 栏 -->
+<nav class="hidden absolute bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-100 flex justify-around items-center z-50" id="bottom-nav">
+<button class="flex flex-col items-center text-blue-500" id="nav-briefing" onclick="switchTab('briefing')">
+<iconify-icon class="text-2xl" icon="mdi:newspaper-variant"></iconify-icon>
+<span class="text-[10px] font-bold mt-1">简报</span>
+</button>
+<button class="flex flex-col items-center text-gray-400" id="nav-saved" onclick="switchTab('saved')">
+<iconify-icon class="text-2xl" icon="mdi:bookmark"></iconify-icon>
+<span class="text-[10px] font-bold mt-1">保存</span>
+</button>
+<button class="flex flex-col items-center text-gray-400" id="nav-settings" onclick="switchTab('settings')">
+<iconify-icon class="text-2xl" icon="mdi:cog"></iconify-icon>
+<span class="text-[10px] font-bold mt-1">设置</span>
+</button>
+</nav>
+<!-- Toast 提示 -->
+<div class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white text-xs px-4 py-2 rounded-full z-[100] opacity-0 pointer-events-none transition-opacity" id="toast">
+            已加入稍后阅读
+        </div>
+<!-- 反馈菜单 Modal -->
+<div class="fixed inset-0 bg-black/40 z-[100] hidden flex items-end" id="feedback-modal">
+<div class="w-full bg-white rounded-t-3xl p-6 pb-10 transform translate-y-full transition-transform duration-300" id="feedback-content">
+<div class="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
+<h3 class="text-lg font-bold mb-6">对此条内容不满意？</h3>
+<div class="space-y-4">
+<button class="w-full flex items-center space-x-4 p-4 rounded-xl border border-gray-100 active:bg-gray-50" onclick="handleFeedback('不喜欢此主题')">
+<iconify-icon class="text-xl text-gray-600" icon="mdi:thumb-down-outline"></iconify-icon>
+<span class="font-medium">不感兴趣</span>
+</button>
+<button class="w-full flex items-center space-x-4 p-4 rounded-xl border border-gray-100 active:bg-gray-50" onclick="handleFeedback('减少此类推荐')">
+<iconify-icon class="text-xl text-gray-600" icon="mdi:eye-off-outline"></iconify-icon>
+<span class="font-medium">减少此类推荐</span>
+</button>
+<button class="w-full flex items-center space-x-4 p-4 rounded-xl border border-gray-100 active:bg-gray-50" onclick="showRecommendReason()">
+<iconify-icon class="text-xl text-gray-600" icon="mdi:information-outline"></iconify-icon>
+<span class="font-medium">推荐原因</span>
+</button>
+</div>
+<button class="w-full mt-6 py-4 text-gray-500 font-bold" onclick="hideFeedback()">取消</button>
+</div>
+</div>
+<!-- 推荐原因弹窗 -->
+<div class="fixed inset-0 bg-black/40 z-[110] hidden flex items-center justify-center px-6" id="reason-modal">
+<div class="bg-white rounded-2xl p-6 w-full max-w-sm">
+<h3 class="text-lg font-bold mb-4">推荐原因</h3>
+<p class="text-sm text-gray-600 mb-6 leading-relaxed">
+                    我们推荐这条新闻是因为您关注了“<span class="text-blue-500 font-bold">财经</span>”标签，并且您最近阅读了 3 篇关于宏观经济政策的文章。
+                </p>
+<button class="w-full bg-blue-500 text-white py-3 rounded-xl font-bold" onclick="hideReason()">知道了</button>
+</div>
+</div>
+<!-- 确认弹窗 -->
+<div class="fixed inset-0 bg-black/40 z-[110] hidden flex items-center justify-center px-6" id="confirm-modal">
+<div class="bg-white rounded-2xl p-6 w-full max-w-sm">
+<h3 class="text-lg font-bold mb-2">确认清除？</h3>
+<p class="text-sm text-gray-500 mb-6">清除后，我们将重新开始学习您的阅读偏好，简报内容将恢复初始状态。</p>
+<div class="flex space-x-3">
+<button class="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold" onclick="hideConfirm()">取消</button>
+<button class="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold" onclick="doClear()">确认清除</button>
+</div>
+</div>
+</div>
+</div>
+<!-- 底部 Home Indicator -->
+<div class="safe-area-bottom flex justify-center items-end pb-2 z-50 relative pointer-events-none">
+<div class="w-32 h-1 bg-gray-300 rounded-full"></div>
+</div>
+</div>
+<script>
+    const newsData = [
+        { id: 'NEWS-001', title: '央行宣布下调存款准备金率0.25个百分点', summary: '中国人民银行决定于2026年6月5日下调金融机构存款准备金率0.25个百分点，旨在保持流动性合理充裕。', source: '财新网', time: '2小时前', tag: '财经' },
+        { id: 'NEWS-002', title: '新一代人工智能芯片突破能耗瓶颈', summary: '科研团队开发出一种基于新型半导体材料的AI芯片，其能效比相比现有主流架构提升了10倍以上。', source: '36氪', time: '3小时前', tag: '科技' },
+        { id: 'NEWS-003', title: '中超联赛新赛季赛程正式公布', summary: '2026赛季中超联赛将于3月中旬拉开帷幕，揭幕战将在上海举行，全年共计30轮激烈对决。', source: '体坛周报', time: '4小时前', tag: '体育' },
+        { id: 'NEWS-004', title: '国产创新药获FDA快速审批通道', summary: '某制药企业自主研发的针对罕见病的新型靶向药物正式获得美国FDA快速审批认定，有望加速全球上市。', source: '医药经济报', time: '5小时前', tag: '健康' },
+        { id: 'NEWS-005', title: '教育部发布2026年高考改革新方案', summary: '新方案进一步强化了综合素质评价在录取中的权重，并对部分学科的考试形式进行了模块化调整。', source: '中国教育报', time: '6小时前', tag: '教育' },
+        { id: 'NEWS-006', title: '国际原油价格跌破70美元关口', summary: '受全球需求预期放缓及主要产油国增产消息影响，布伦特原油期货价格今日大幅走低。', source: '华尔街见闻', time: '7小时前', tag: '财经' },
+        { id: 'NEWS-007', title: '国产科幻电影票房突破40亿', summary: '该影片凭借极致的视觉效果和深刻的哲学探讨，刷新了国产科幻片多项历史纪录，口碑持续走高。', source: '猫眼电影', time: '8小时前', tag: '娱乐' },
+        { id: 'NEWS-008', title: '长三角一体化示范区新规实施', summary: '新规重点围绕政务服务“跨省通办”和生态环境联防联治，旨在进一步打破行政壁垒，促进资源要素自由流动。', source: '澎湃新闻', time: '9小时前', tag: '国内' }
+    ];
+
+    const allTags = ['科技', '财经', '体育', '娱乐', '健康', '教育', '国际', '国内', '军事', '文化', '汽车', '房产', '数码', '美食', '旅游', '游戏'];
+    let selectedTags = new Set(['科技', '财经', '国际']);
+    let excludedTags = new Set(['游戏']);
+    let savedNewsIds = new Set();
+    let historyIds = [];
+    let currentPageId = 'scr-001';
+    let currentDetailNews = null;
+
+    // 初始化
+    window.onload = () => {
+        renderOnboardingTags();
+        renderNewsList();
+        renderManageTags();
+    };
+
+    function switchPage(pageId) {
+        document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+        document.getElementById(pageId).classList.remove('hidden');
+        currentPageId = pageId;
+        
+        // 处理导航栏显隐
+        const nav = document.getElementById('bottom-nav');
+        if (['scr-002', 'scr-005', 'scr-006'].includes(pageId)) {
+            nav.classList.remove('hidden');
+        } else {
+            nav.classList.add('hidden');
+        }
+    }
+
+    function goBack() {
+        if (currentPageId === 'scr-004') {
+            switchPage('scr-002');
+        } else if (currentPageId === 'scr-003') {
+            switchPage('scr-006');
+        }
+    }
+
+    function renderOnboardingTags() {
+        const container = document.getElementById('onboarding-tags');
+        container.innerHTML = allTags.map(tag => `
+            <button onclick="toggleTag('${tag}', this)" class="py-2 px-1 text-xs font-medium rounded-lg border transition-all ${selectedTags.has(tag) ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-gray-200 text-gray-600'}">
+                ${tag}
+            </button>
+        `).join('');
+    }
+
+    function toggleTag(tag, el) {
+        if (selectedTags.has(tag)) {
+            selectedTags.delete(tag);
+            el.className = 'py-2 px-1 text-xs font-medium rounded-lg border bg-white border-gray-200 text-gray-600 transition-all';
+        } else {
+            selectedTags.add(tag);
+            el.className = 'py-2 px-1 text-xs font-medium rounded-lg border bg-blue-50 border-blue-500 text-blue-600 transition-all';
+        }
+    }
+
+    function completeOnboarding() {
+        switchPage('scr-002');
+        // 模拟加载
+        setTimeout(() => {
+            document.getElementById('skeleton-briefing').classList.add('hidden');
+            document.getElementById('news-list').classList.remove('hidden');
+        }, 1500);
+    }
+
+    function renderNewsList() {
+        const container = document.getElementById('news-list');
+        container.innerHTML = newsData.map(news => `
+            <div class="bg-white rounded-xl p-4 border border-gray-100 shadow-sm active:scale-[0.98] transition-transform" onclick="openDetail('${news.id}')">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-[10px] font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">${news.tag}</span>
+                    <button onclick="event.stopPropagation(); showFeedback('${news.id}')" class="text-gray-400">
+                        <iconify-icon icon="mdi:dots-horizontal"></iconify-icon>
+                    </button>
+                </div>
+                <h3 class="text-base font-bold text-gray-900 mb-2 leading-snug">${news.title}</h3>
+                <p class="text-sm text-gray-500 line-clamp-2 mb-4 leading-relaxed">${news.summary}</p>
+                <div class="flex justify-between items-center text-[11px] text-gray-400">
+                    <span class="font-medium">${news.source}</span>
+                    <span>${news.time}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function openDetail(newsId) {
+        const news = newsData.find(n => n.id === newsId);
+        currentDetailNews = news;
+        
+        // 记录历史
+        if (!historyIds.includes(newsId)) {
+            historyIds.unshift(newsId);
+        }
+
+        document.getElementById('detail-content').innerHTML = `
+            <span class="text-xs font-bold text-blue-500 mb-2 block">${news.tag}</span>
+            <h1 class="text-2xl font-bold text-gray-900 mb-6 leading-tight">${news.title}</h1>
+            <div class="space-y-4 text-gray-700 leading-relaxed text-base">
+                <p>${news.summary}</p>
+                <p>这里是模拟的新闻正文内容。作为一款致力于提升阅读效率的产品，“每日新闻 App”通过智能算法为您聚合全球重要资讯。我们坚持来源透明原则，确保每一篇简报都有据可查。</p>
+                <p>在快节奏的数字化时代，我们希望帮助用户在 5 分钟内掌握真正对个人有价值的信息，摆脱信息过载带来的焦虑。</p>
+            </div>
+        `;
+        document.getElementById('detail-source-name').innerText = news.source;
+        document.getElementById('detail-time').innerText = news.time;
+        
+        // 更新保存按钮状态
+        updateDetailSaveIcon();
+        
+        switchPage('scr-004');
+    }
+
+    function updateDetailSaveIcon() {
+        const btn = document.getElementById('detail-save-btn');
+        if (savedNewsIds.has(currentDetailNews.id)) {
+            btn.innerHTML = `<iconify-icon icon="mdi:bookmark" class="text-2xl text-blue-500"></iconify-icon>`;
+        } else {
+            btn.innerHTML = `<iconify-icon icon="mdi:bookmark-outline" class="text-2xl text-gray-600"></iconify-icon>`;
+        }
+    }
+
+    function toggleSaveCurrentNews() {
+        if (savedNewsIds.has(currentDetailNews.id)) {
+            savedNewsIds.delete(currentDetailNews.id);
+            showToast('已取消保存');
+        } else {
+            savedNewsIds.add(currentDetailNews.id);
+            showToast('已加入稍后阅读');
+        }
+        updateDetailSaveIcon();
+        renderSavedList();
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.innerText = msg;
+        toast.classList.remove('opacity-0', 'pointer-events-none');
+        setTimeout(() => {
+            toast.classList.add('opacity-0', 'pointer-events-none');
+        }, 2000);
+    }
+
+    // Tab 切换
+    function switchTab(tab) {
+        document.querySelectorAll('#bottom-nav button').forEach(btn => btn.className = 'flex flex-col items-center text-gray-400');
+        document.getElementById(`nav-${tab}`).className = 'flex flex-col items-center text-blue-500';
+        
+        if (tab === 'briefing') switchPage('scr-002');
+        if (tab === 'saved') {
+            switchPage('scr-005');
+            renderSavedList();
+        }
+        if (tab === 'settings') switchPage('scr-006');
+    }
+
+    // 保存页 Tab
+    let currentSavedTab = 'saved';
+    function switchSavedTab(tab) {
+        currentSavedTab = tab;
+        const savedBtn = document.getElementById('tab-btn-saved');
+        const historyBtn = document.getElementById('tab-btn-history');
+        
+        if (tab === 'saved') {
+            savedBtn.className = 'flex-1 py-2 text-sm font-semibold rounded-lg bg-white shadow-sm text-gray-900 transition-all';
+            historyBtn.className = 'flex-1 py-2 text-sm font-semibold rounded-lg text-gray-500 transition-all';
+        } else {
+            historyBtn.className = 'flex-1 py-2 text-sm font-semibold rounded-lg bg-white shadow-sm text-gray-900 transition-all';
+            savedBtn.className = 'flex-1 py-2 text-sm font-semibold rounded-lg text-gray-500 transition-all';
+        }
+        renderSavedList();
+    }
+
+    function renderSavedList() {
+        const container = document.getElementById('saved-content-list');
+        const empty = document.getElementById('saved-empty-state');
+        const ids = currentSavedTab === 'saved' ? Array.from(savedNewsIds) : historyIds;
+        
+        if (ids.length === 0) {
+            container.innerHTML = '';
+            empty.classList.remove('hidden');
+        } else {
+            empty.classList.add('hidden');
+            const listData = ids.map(id => newsData.find(n => n.id === id)).filter(Boolean);
+            container.innerHTML = listData.map(news => `
+                <div class="bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex space-x-4 items-center active:bg-gray-50" onclick="openDetail('${news.id}')">
+                    <div class="flex-1">
+                        <h3 class="text-sm font-bold text-gray-900 mb-1 line-clamp-1">${news.title}</h3>
+                        <div class="flex items-center space-x-2 text-[10px] text-gray-400">
+                            <span class="text-blue-500 font-bold">${news.tag}</span>
+                            <span>•</span>
+                            <span>${news.source}</span>
+                        </div>
+                    </div>
+                    <iconify-icon icon="mdi:chevron-right" class="text-gray-300"></iconify-icon>
+                </div>
+            `).join('');
+        }
+    }
+
+    // 标签管理
+    function renderManageTags() {
+        const selectedCont = document.getElementById('selected-tags-manage');
+        const recommendCont = document.getElementById('recommend-tags-manage');
+        const excludedCont = document.getElementById('excluded-tags-manage');
+
+        selectedCont.innerHTML = Array.from(selectedTags).map(tag => `
+            <button onclick="manageTagAction('${tag}', 'deselect')" class="px-3 py-1.5 bg-blue-50 border border-blue-500 text-blue-600 rounded-full text-xs font-bold flex items-center">
+                ${tag} <iconify-icon icon="mdi:close" class="ml-1"></iconify-icon>
+            </button>
+        `).join('');
+
+        const recommended = allTags.filter(t => !selectedTags.has(t) && !excludedTags.has(t)).slice(0, 6);
+        recommendCont.innerHTML = recommended.map(tag => `
+            <button onclick="manageTagAction('${tag}', 'select')" class="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-full text-xs font-medium flex items-center">
+                ${tag} <iconify-icon icon="mdi:plus" class="ml-1"></iconify-icon>
+            </button>
+        `).join('');
+
+        excludedCont.innerHTML = Array.from(excludedTags).map(tag => `
+            <button onclick="manageTagAction('${tag}', 'restore')" class="px-3 py-1.5 bg-red-50 border border-red-200 text-red-500 rounded-full text-xs font-medium flex items-center tag-excluded">
+                ${tag}
+            </button>
+        `).join('');
+    }
+
+    function manageTagAction(tag, action) {
+        if (action === 'deselect') {
+            selectedTags.delete(tag);
+            excludedTags.add(tag);
+        } else if (action === 'select') {
+            selectedTags.add(tag);
+        } else if (action === 'restore') {
+            excludedTags.delete(tag);
+        }
+        renderManageTags();
+    }
+
+    function saveTags() {
+        showToast('标签已更新');
+        switchPage('scr-002');
+    }
+
+    // 反馈与弹窗
+    function showFeedback(newsId) {
+        const modal = document.getElementById('feedback-modal');
+        const content = document.getElementById('feedback-content');
+        modal.classList.remove('hidden');
+        setTimeout(() => content.classList.remove('translate-y-full'), 10);
+    }
+
+    function hideFeedback() {
+        const modal = document.getElementById('feedback-modal');
+        const content = document.getElementById('feedback-content');
+        content.classList.add('translate-y-full');
+        setTimeout(() => modal.classList.add('hidden'), 300);
+    }
+
+    function handleFeedback(msg) {
+        hideFeedback();
+        showToast(`已提交反馈：${msg}`);
+    }
+
+    function showRecommendReason() {
+        hideFeedback();
+        document.getElementById('reason-modal').classList.remove('hidden');
+    }
+
+    function hideReason() {
+        document.getElementById('reason-modal').classList.add('hidden');
+    }
+
+    function confirmClear() {
+        document.getElementById('confirm-modal').classList.remove('hidden');
+    }
+
+    function hideConfirm() {
+        document.getElementById('confirm-modal').classList.add('hidden');
+    }
+
+    function doClear() {
+        selectedTags = new Set(['科技', '财经']);
+        excludedTags = new Set();
+        savedNewsIds = new Set();
+        historyIds = [];
+        hideConfirm();
+        showToast('已清除所有偏好');
+        switchTab('briefing');
+    }
+</script>
+</body>
+</html>

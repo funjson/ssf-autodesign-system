@@ -22,3 +22,5 @@ ssf:
   demo:
     enabled: ${SSF_DEMO_ENABLED:true}
     workspace-path: ${SSF_DEMO_WORKSPACE_PATH:../demo/ssf-workspace}
+  cors:
+    allowed-origins: ${SSF_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}

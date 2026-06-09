@@ -1061,6 +1061,28 @@ button {
   font-size: 12px;
 }
 
+.annotation-debug-panel.collapsed {
+  gap: 0;
+}
+
+.debug-toggle-button {
+  order: 3;
+  margin-left: auto;
+  padding: 4px 8px;
+  border: 1px solid #d8ded9;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #405047;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.debug-toggle-button:hover {
+  border-color: #b9d9ce;
+  background: #f4fbf8;
+  color: #1f6f5b;
+}
+
 .annotation-debug-panel dl {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);
@@ -1912,6 +1934,31 @@ button {
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.annotation-task-focus {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #b9d9ce;
+  border-left: 4px solid #1f6f5b;
+  border-radius: 8px;
+  background: #f4fbf8;
+  color: #26342f;
+}
+
+.annotation-task-focus strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annotation-task-focus span {
+  color: #5c6861;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .task-overview-summary {

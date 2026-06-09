@@ -98,7 +98,7 @@ const summaryItems = computed(() => {
     { key: 'features' as const, label: '任务', count: focusedFeatures.value.length },
     { key: 'rules' as const, label: '规则', count: focusedRules.value.length },
     { key: 'acceptances' as const, label: '验收', count: focusedAcceptances.value.length },
-    { key: 'annotations' as const, label: '标注', count: props.focusBinding ? 1 : 0 }
+    { key: 'annotations' as const, label: '标注', count: props.focusBinding ? focusedFeatures.value.length : 0 }
   ];
 });
 
@@ -350,23 +350,51 @@ function groupByFeatureId<T>(items: T[], featureIdOf: (item: T) => string) {
       </div>
 
       <div v-else class="task-group-list">
-        <article v-if="props.focusBinding" class="overview-record annotation-overview-record">
-          <strong>{{ props.focusBinding.bindingId }} · {{ props.focusBinding.name || '未命名标注' }}</strong>
-          <dl>
-            <dt>页面</dt>
-            <dd>{{ props.focusBinding.screenId || '未绑定' }}</dd>
-            <dt>组件</dt>
-            <dd>{{ props.focusBinding.componentId || '页面级标注' }}</dd>
-            <dt>DOM</dt>
-            <dd>{{ props.focusBinding.targets.length }} 个</dd>
-            <dt>任务</dt>
-            <dd>{{ props.focusBinding.relatedFeatures.join(' / ') || '暂无' }}</dd>
-            <dt>规则</dt>
-            <dd>{{ props.focusBinding.relatedRules.join(' / ') || '暂无' }}</dd>
-            <dt>验收</dt>
-            <dd>{{ props.focusBinding.relatedAcceptances.join(' / ') || '暂无' }}</dd>
-          </dl>
-        </article>
+        <template v-if="props.focusBinding">
+          <div class="annotation-task-focus">
+            <strong>{{ props.focusBinding.bindingId }} · {{ props.focusBinding.name || '未命名标注' }}</strong>
+            <span>{{ props.focusBinding.screenId }}{{ props.focusBinding.componentId ? ` / ${props.focusBinding.componentId}` : ' / 页面级标注' }}</span>
+          </div>
+
+          <details
+            v-for="(feature, index) in focusedFeatures"
+            :key="feature.featureId"
+            class="task-feature-card overview-card"
+            :open="index === 0"
+          >
+            <summary>
+              <span>{{ feature.featureId }} {{ feature.name }}</span>
+              <small>{{ feature.relatedScreensText || '未解析页面关系' }}</small>
+            </summary>
+            <div class="task-feature-body">
+              <p v-if="feature.userStory" class="task-user-story">{{ feature.userStory }}</p>
+              <div v-if="feature.goals.length" class="task-goals">
+                <strong>目标</strong>
+                <p v-for="goal in feature.goals" :key="goal">{{ goal }}</p>
+              </div>
+              <FeatureFlowDiagram
+                :main-flow="feature.mainFlow"
+                :branch-flows="feature.branchFlows"
+                :exception-flows="feature.exceptionFlows"
+              />
+              <div v-if="rulesFor(feature).length" class="task-linked-list">
+                <strong>业务规则</strong>
+                <p v-for="rule in rulesFor(feature)" :key="rule.ruleId">
+                  <span>{{ rule.ruleId }}</span>{{ rule.rule }}
+                </p>
+              </div>
+              <div v-if="acceptancesFor(feature).length" class="task-linked-list">
+                <strong>验收标准</strong>
+                <p v-for="ac in acceptancesFor(feature)" :key="ac.acId">
+                  <span>{{ ac.acId }}</span>{{ ac.thenText || ac.point }}
+                </p>
+              </div>
+            </div>
+          </details>
+
+          <p v-if="!focusedFeatures.length" class="muted task-empty">这个 ANN 暂时没有关联任务。</p>
+        </template>
+
         <p v-else class="muted task-empty">选择一个已保存 ANN 后，这里会显示标注关系。</p>
       </div>
     </template>

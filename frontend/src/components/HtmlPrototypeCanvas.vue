@@ -52,6 +52,7 @@ const parentLastSentMessage = ref('');
 const parentLastReceivedMessage = ref('');
 const lastDraftAction = ref('');
 const bridgePostError = ref('');
+const debugPanelExpanded = ref(false);
 const draftActionSeq = ref(0);
 const bridgeDebugState = ref({
   reason: '',
@@ -490,12 +491,15 @@ function serializableTarget(target: HtmlPrototypeTargetDto) {
             <p>标注模式下点击原型 DOM 会加入或移出待保存集合；多个 DOM 可以保存成同一个 ANN。</p>
           </div>
 
-          <section class="annotation-debug-panel">
+          <section class="annotation-debug-panel" :class="{ collapsed: !debugPanelExpanded }">
             <div class="binding-panel-title">
               <Code2 :size="15" />
+              <button type="button" class="debug-toggle-button" @click="debugPanelExpanded = !debugPanelExpanded">
+                {{ debugPanelExpanded ? '收起' : '展开' }}
+              </button>
               <h3>调试状态</h3>
             </div>
-            <dl>
+            <dl v-if="debugPanelExpanded">
               <dt>父页面模式</dt>
               <dd>{{ props.interactionMode }}</dd>
               <dt>iframe 模式</dt>

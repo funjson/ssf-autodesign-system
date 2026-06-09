@@ -66,6 +66,18 @@ const prototypeUploadInput = ref<HTMLInputElement | null>(null);
 const pendingHtmlUploadInstance = ref<SpiInstanceDto | null>(null);
 const htmlFolderInput = ref<HTMLInputElement | null>(null);
 const htmlFileInput = ref<HTMLInputElement | null>(null);
+const deleteAnnTimeoutMessage = 'ANN_DELETE_TIMEOUT';
+const saveAnnTimeoutMessage = 'ANN_SAVE_TIMEOUT';
+const annSaveDebug = ref({
+  bindingId: '',
+  status: 'idle',
+  detail: ''
+});
+const annDeleteDebug = ref({
+  bindingId: '',
+  status: 'idle',
+  detail: ''
+});
 
 const appGridStyle = computed(() => ({
   gridTemplateColumns: `324px minmax(520px, 1fr) 6px ${inspectorCollapsed.value ? '54px' : `${inspectorWidth.value}px`}`
@@ -493,6 +505,23 @@ async function loadHtmlPrototype(instanceId: number) {
   }
 }
 
+function applyHtmlBindings(bindings: HtmlPrototypeBindingDto[]) {
+  htmlBindings.value = bindings;
+  if (htmlPackage.value) {
+    htmlPackage.value = {
+      ...htmlPackage.value,
+      bindings
+    };
+  }
+  if (selectedHtmlBindingId.value && !bindings.some((binding) => binding.bindingId === selectedHtmlBindingId.value)) {
+    selectedHtmlBindingId.value = '';
+  }
+}
+
+async function refreshHtmlBindings(instanceId: number) {
+  applyHtmlBindings(await api.getHtmlPrototypeBindings(instanceId));
+}
+
 function selectHtmlElement(element: HtmlElementSelection) {
   selectedHtmlElement.value = element;
 }
@@ -534,42 +563,145 @@ function selectHtmlBinding(bindingId: string) {
 
 async function saveHtmlAnnotation(payload: SaveHtmlPrototypeBindingPayload) {
   if (!selectedInstance.value) return;
-  await withLoading(async () => {
-    const binding = await api.saveHtmlPrototypeBinding(selectedInstance.value!.id, payload);
-    htmlBindings.value = [
+  const instanceId = selectedInstance.value.id;
+  loading.value = false;
+  error.value = '';
+  toast.value = 'ANN 保存中...';
+  annSaveDebug.value = {
+    bindingId: '',
+    status: 'saving',
+    detail: '正在请求后端保存 ANN'
+  };
+  try {
+    const binding = await withTimeout(
+      api.saveHtmlPrototypeBinding(instanceId, payload),
+      5000,
+      saveAnnTimeoutMessage
+    );
+    applyHtmlBindings([
       ...htmlBindings.value.filter((item) => item.bindingId !== binding.bindingId),
       binding
-    ];
-    if (htmlPackage.value) {
-      htmlPackage.value = {
-        ...htmlPackage.value,
-        bindings: htmlBindings.value
-      };
-    }
-    selectHtmlBinding(binding.bindingId);
+    ]);
+    // Saving creates a persisted ANN record, but should not automatically enter
+    // ANN selection mode. Keeping this neutral avoids mixing "draft DOM" work
+    // with saved ANN navigation/highlight behavior.
+    selectedHtmlBindingId.value = '';
     draftHtmlTargets.value = [];
+    annSaveDebug.value = {
+      bindingId: binding.bindingId,
+      status: 'save-ok',
+      detail: 'ANN 已保存到后端并更新当前列表'
+    };
     toast.value = `${binding.bindingId} 已创建，包含 ${binding.targets?.length ?? 0} 个 DOM`;
-  });
+  } catch (err) {
+    if (isSaveTimeout(err)) {
+      annSaveDebug.value = {
+        bindingId: '',
+        status: 'save-timeout',
+        detail: '保存请求未按时返回，稍后自动校准 bindings'
+      };
+      toast.value = 'ANN 保存确认超时，稍后自动校准';
+      window.setTimeout(() => {
+        void refreshHtmlBindings(instanceId).catch(() => undefined);
+      }, 3000);
+      return;
+    }
+    annSaveDebug.value = {
+      bindingId: '',
+      status: 'save-error',
+      detail: err instanceof Error ? err.message : String(err)
+    };
+    toast.value = '';
+    error.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function deleteHtmlAnnotation(binding: HtmlPrototypeBindingDto) {
   if (!selectedInstance.value) return;
+  annDeleteDebug.value = {
+    bindingId: binding.bindingId,
+    status: 'delete-intent',
+    detail: '删除入口已触发，等待用户二次确认'
+  };
   const confirmed = window.confirm(`确认删除标注「${binding.name || binding.bindingId}」吗？\n\n删除后不会删除原型文件，只会移除系统里的 ANN 关系。`);
-  if (!confirmed) return;
-  await withLoading(async () => {
-    await api.deleteHtmlPrototypeBinding(selectedInstance.value!.id, binding.bindingId);
-    htmlBindings.value = htmlBindings.value.filter((item) => item.bindingId !== binding.bindingId);
-    if (htmlPackage.value) {
-      htmlPackage.value = {
-        ...htmlPackage.value,
-        bindings: htmlBindings.value
-      };
-    }
-    if (selectedHtmlBindingId.value === binding.bindingId) {
-      selectedHtmlBindingId.value = '';
-    }
+  if (!confirmed) {
+    annDeleteDebug.value = {
+      bindingId: binding.bindingId,
+      status: 'delete-cancelled',
+      detail: '用户取消了二次确认'
+    };
+    return;
+  }
+  const instanceId = selectedInstance.value.id;
+  const previousBindings = htmlBindings.value;
+  const previousSelectedBindingId = selectedHtmlBindingId.value;
+  loading.value = false;
+  error.value = '';
+  toast.value = `${binding.bindingId} 删除中...`;
+  annDeleteDebug.value = {
+    bindingId: binding.bindingId,
+    status: 'optimistic-remove',
+    detail: '已先从当前列表移除，正在请求后端删除'
+  };
+  applyHtmlBindings(htmlBindings.value.filter((item) => item.bindingId !== binding.bindingId));
+  if (selectedHtmlBindingId.value === binding.bindingId) {
+    selectedHtmlBindingId.value = '';
+  }
+
+  try {
+    await withTimeout(
+      api.deleteHtmlPrototypeBinding(instanceId, binding.bindingId),
+      4000,
+      deleteAnnTimeoutMessage
+    );
+    annDeleteDebug.value = {
+      bindingId: binding.bindingId,
+      status: 'delete-ok',
+      detail: '后端删除已确认，后台校准 bindings'
+    };
     toast.value = `${binding.bindingId} 已删除`;
-  });
+    void refreshHtmlBindings(instanceId).catch((err) => {
+      annDeleteDebug.value = {
+        bindingId: binding.bindingId,
+        status: 'refresh-failed',
+        detail: err instanceof Error ? err.message : String(err)
+      };
+    });
+  } catch (err) {
+    if (isDeleteTimeout(err)) {
+      annDeleteDebug.value = {
+        bindingId: binding.bindingId,
+        status: 'delete-timeout',
+        detail: '删除请求未按时返回，已保持当前列表移除状态'
+      };
+      toast.value = `${binding.bindingId} 已从当前列表移除；后端确认稍后自动校准`;
+      window.setTimeout(() => {
+        void refreshHtmlBindings(instanceId).catch(() => undefined);
+      }, 3000);
+      return;
+    }
+    if (err instanceof ApiClientError && err.status === 404) {
+      annDeleteDebug.value = {
+        bindingId: binding.bindingId,
+        status: 'delete-404-as-ok',
+        detail: '后端已不存在该 ANN，按删除成功处理'
+      };
+      toast.value = `${binding.bindingId} 已删除`;
+      void refreshHtmlBindings(instanceId).catch(() => undefined);
+      return;
+    }
+    applyHtmlBindings(previousBindings);
+    selectedHtmlBindingId.value = previousSelectedBindingId;
+    annDeleteDebug.value = {
+      bindingId: binding.bindingId,
+      status: 'delete-error',
+      detail: err instanceof Error ? err.message : String(err)
+    };
+    toast.value = '';
+    error.value = err instanceof Error ? err.message : String(err);
+  }
 }
 
 function changeHtmlEntry(entryPath: string) {
@@ -618,6 +750,26 @@ async function withLoading(work: () => Promise<void>) {
   } finally {
     loading.value = false;
   }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId = 0;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
+  });
+}
+
+function isDeleteTimeout(err: unknown) {
+  return err instanceof Error && err.message === deleteAnnTimeoutMessage;
+}
+
+function isSaveTimeout(err: unknown) {
+  return err instanceof Error && err.message === saveAnnTimeoutMessage;
 }
 
 function toggleInspector() {
@@ -872,6 +1024,8 @@ function relatedIds(type: 'features' | 'rules' | 'acceptances') {
             :draft-targets="draftHtmlTargets"
             :selected-binding-id="selectedHtmlBindingId"
             :interaction-mode="htmlInteractionMode"
+            :save-debug="annSaveDebug"
+            :delete-debug="annDeleteDebug"
             @select-element="selectHtmlElement"
             @save-binding="saveHtmlAnnotation"
             @delete-binding="deleteHtmlAnnotation"

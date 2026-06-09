@@ -195,6 +195,7 @@
         <button id="annotateBtn" type="button" class="active">标注</button>
         <button id="syncBtn" type="button">手动回灌</button>
         <button id="resetBtn" type="button">重置 demo</button>
+        <button id="staleBtn" type="button" class="warning">模拟主系统坏状态</button>
       </div>
       <iframe id="prototypeFrame" src="./child.html"></iframe>
     </main>
@@ -227,6 +228,7 @@
         <button id="saveGoodBtn" type="button" class="primary" disabled>新建 ANN（正确刷新）</button>
         <button id="saveBrokenBtn" type="button" class="warning" disabled>模拟只写后端不刷新</button>
         <button id="reloadBtn" type="button">从后端重载 ANN</button>
+        <button id="deleteSelectedBtn" type="button" class="warning" disabled>删除选中 ANN</button>
       </section>
 
       <section class="panel">
@@ -255,6 +257,8 @@
           <dd id="debugChildToParent">-</dd>
           <dt>最近动作</dt>
           <dd id="debugAction">-</dd>
+          <dt>delete 状态</dt>
+          <dd id="debugDelete">idle</dd>
         </dl>
       </section>
 
@@ -279,6 +283,7 @@
         draftCount: 0
       },
       action: "-",
+      deleteDebug: "idle",
       logs: []
     };
 
@@ -380,6 +385,56 @@
       render();
     }
 
+    function simulateMainBrokenState() {
+      const firstTarget = {
+        targetId: "stale-dom-1",
+        pagePath: "child.html",
+        selector: "[data-ann-id=\"dom-1\"]",
+        tagName: "section",
+        textFingerprint: "Today Radar",
+        rectX: 0,
+        rectY: 0,
+        rectWidth: 1,
+        rectHeight: 1
+      };
+      const ann = {
+        id: "ANN-STALE",
+        name: "主系统坏状态",
+        screenId: "SCR-001",
+        componentId: "CMP-001",
+        targets: [firstTarget]
+      };
+      backendWrite([ann]);
+      state.annotations = [ann];
+      state.activeAnnotationId = ann.id;
+      state.draftTargets = [];
+      state.action = "simulate-stale-parent-ann-child-draft";
+      // Deliberately do not sync annotations to iframe. This mirrors the main
+      // symptom where parent ANN exists but iframe still shows stale draft state.
+      postToChild({
+        type: "ssf-repro-sync-state",
+        draftTargets: [firstTarget],
+        annotations: [],
+        activeAnnotationId: ""
+      });
+      log("已模拟：父页面 ANN=1，iframe draft=1，iframe ANN=0");
+      render();
+    }
+
+    function deleteSelectedAnn() {
+      const annId = state.activeAnnotationId || state.annotations[0]?.id || "";
+      if (!annId) return;
+      state.deleteDebug = `delete-start:${annId}`;
+      state.annotations = state.annotations.filter(ann => ann.id !== annId);
+      backendWrite(backendRead().filter(ann => ann.id !== annId));
+      state.activeAnnotationId = "";
+      state.action = `delete-ann:${annId}`;
+      state.deleteDebug = `delete-ok:${annId}`;
+      syncStateToChild();
+      log(`${annId} 已从父页面和模拟后端删除`);
+      render();
+    }
+
     function removeDraft(targetId) {
       state.draftTargets = state.draftTargets.filter(target => target.targetId !== targetId);
       state.action = `remove-draft:${targetId}`;
@@ -451,6 +506,7 @@
       document.getElementById("debugParentToChild").textContent = state.parentToChild;
       document.getElementById("debugChildToParent").textContent = state.childToParent;
       document.getElementById("debugAction").textContent = state.action;
+      document.getElementById("debugDelete").textContent = state.deleteDebug;
       document.getElementById("logList").innerHTML = state.logs.map(item => `<div>${item}</div>`).join("");
     }
 
@@ -461,6 +517,7 @@
       document.getElementById("annCount").textContent = state.annotations.length;
       document.getElementById("saveGoodBtn").disabled = !state.draftTargets.length;
       document.getElementById("saveBrokenBtn").disabled = !state.draftTargets.length;
+      document.getElementById("deleteSelectedBtn").disabled = !state.annotations.length;
       renderDraftList();
       renderAnnList();
       renderDebug();
@@ -500,10 +557,11 @@
     document.getElementById("saveGoodBtn").addEventListener("click", saveWithRefresh);
     document.getElementById("saveBrokenBtn").addEventListener("click", saveWithoutRefresh);
     document.getElementById("reloadBtn").addEventListener("click", reloadFromBackend);
+    document.getElementById("deleteSelectedBtn").addEventListener("click", deleteSelectedAnn);
+    document.getElementById("staleBtn").addEventListener("click", simulateMainBrokenState);
 
     state.annotations = backendRead();
     render();
   </script>
 </body>
 </html>
-

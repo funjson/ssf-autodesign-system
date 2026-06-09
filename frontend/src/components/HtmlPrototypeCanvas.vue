@@ -21,6 +21,16 @@ const props = defineProps<{
   draftTargets: HtmlPrototypeTargetDto[];
   selectedBindingId: string;
   interactionMode: 'browse' | 'annotate';
+  saveDebug: {
+    bindingId: string;
+    status: string;
+    detail: string;
+  };
+  deleteDebug: {
+    bindingId: string;
+    status: string;
+    detail: string;
+  };
 }>();
 
 const emit = defineEmits<{
@@ -41,6 +51,7 @@ const iframeRef = ref<HTMLIFrameElement | null>(null);
 const parentLastSentMessage = ref('');
 const parentLastReceivedMessage = ref('');
 const lastDraftAction = ref('');
+const bridgePostError = ref('');
 const draftActionSeq = ref(0);
 const bridgeDebugState = ref({
   reason: '',
@@ -93,6 +104,10 @@ const annotationSyncKey = computed(() => [
     binding.targets.map((target) => `${target.pagePath}|${target.targetId}|${target.selector}`).join(';')
   ].join('|'))
 ].join('||'));
+const draftSyncKey = computed(() => [
+  props.htmlPackage?.entryPath ?? '',
+  ...props.draftTargets.map((target) => targetKey(target))
+].join('||'));
 
 watch(() => props.graph?.instanceId, () => {
   screenChoice.value = props.graph?.screens[0]?.screenId ?? '';
@@ -127,6 +142,7 @@ watch(() => props.htmlPackage?.entryUrl, () => {
 
 watch(() => props.interactionMode, syncBridgeMode);
 watch(annotationSyncKey, scheduleBridgeAnnotationSync, { flush: 'post' });
+watch(draftSyncKey, scheduleBridgeDraftSync, { flush: 'post' });
 
 onMounted(() => {
   window.addEventListener('message', handleMessage);
@@ -145,6 +161,7 @@ function handleMessage(event: MessageEvent) {
   if (data?.type === 'ssf-prototype-ready') {
     syncBridgeMode();
     syncBridgeAnnotations();
+    syncBridgeDraftTargets();
     return;
   }
   if (data?.type === 'ssf-prototype-draft-targets-change') {
@@ -319,10 +336,10 @@ function requestBindingSelection(bindingId: string) {
 function updateDraftTargets(targets: HtmlPrototypeTargetDto[]) {
   const nextTargets = uniqueTargets(targets);
   emit('set-draft-targets', nextTargets);
-  // Only parent-originated edits, such as deleting from the right panel, are
-  // pushed back into the iframe. Iframe-originated toggles are accepted as-is.
-  syncBridgeAnnotations(nextTargets);
-  window.setTimeout(() => syncBridgeAnnotations(nextTargets), 80);
+  // Parent-originated draft edits, such as deleting from the right panel, use a
+  // narrow draft-only message so they cannot disturb saved ANN selection state.
+  syncBridgeDraftTargets(nextTargets);
+  window.setTimeout(() => syncBridgeDraftTargets(nextTargets), 80);
 }
 
 function recordDraftAction(action: string) {
@@ -339,36 +356,77 @@ function changeMode(mode: 'browse' | 'annotate') {
 
 function syncBridgeMode(mode = props.interactionMode) {
   parentLastSentMessage.value = 'ssf-prototype-set-mode';
-  iframeRef.value?.contentWindow?.postMessage({
+  postToIframe({
     type: 'ssf-prototype-set-mode',
     mode: mode === 'annotate' ? 'annotate' : 'browse'
-  }, '*');
+  });
 }
 
-function syncBridgeAnnotations(draftTargets = props.draftTargets) {
-  // One full snapshot keeps the iframe rendering deterministic: saved ANN
-  // overlays, the active ANN, and the temporary draft DOM set are sent together.
-  parentLastSentMessage.value = 'ssf-prototype-sync-annotations';
-  iframeRef.value?.contentWindow?.postMessage({
-    type: 'ssf-prototype-sync-annotations',
+function syncBridgeDraftTargets(draftTargets = props.draftTargets) {
+  parentLastSentMessage.value = 'ssf-prototype-sync-draft-targets';
+  postToIframe({
+    type: 'ssf-prototype-sync-draft-targets',
+    draftTargets: draftTargets.map(serializableTarget)
+  });
+}
+
+function syncBridgeAnnotations() {
+  parentLastSentMessage.value = 'ssf-prototype-sync-ann-annotations';
+  postToIframe({
+    type: 'ssf-prototype-sync-ann-annotations',
     activeAnnotationId: props.selectedBindingId,
-    draftTargets,
-    annotations: props.bindings.map((binding) => ({
-      bindingId: binding.bindingId,
-      name: binding.name,
-      screenId: binding.screenId,
-      componentId: binding.componentId,
-      targets: binding.targets
-    }))
-  }, '*');
+    annotations: props.bindings.map(serializableBinding)
+  });
 }
 
 function scheduleBridgeAnnotationSync() {
-  // ANN changes are driven by async saves. Sending after the Vue flush, then
-  // retrying briefly, prevents a stale iframe from keeping draft-only state.
+  // ANN changes are driven by async saves/deletes. Keep this separate from the
+  // temporary draft DOM snapshot so ANN selection cannot overwrite draft edits.
   syncBridgeAnnotations();
   window.setTimeout(() => syncBridgeAnnotations(), 60);
   window.setTimeout(() => syncBridgeAnnotations(), 180);
+}
+
+function scheduleBridgeDraftSync() {
+  syncBridgeDraftTargets();
+  window.setTimeout(() => syncBridgeDraftTargets(), 60);
+}
+
+function postToIframe(message: Record<string, unknown>) {
+  try {
+    bridgePostError.value = '';
+    iframeRef.value?.contentWindow?.postMessage(message, '*');
+  } catch (error) {
+    bridgePostError.value = error instanceof Error ? error.message : String(error);
+  }
+}
+
+function serializableBinding(binding: HtmlPrototypeBindingDto) {
+  return {
+    bindingId: binding.bindingId,
+    name: binding.name,
+    screenId: binding.screenId,
+    componentId: binding.componentId,
+    targets: binding.targets.map(serializableTarget)
+  };
+}
+
+function serializableTarget(target: HtmlPrototypeTargetDto) {
+  return {
+    targetId: target.targetId ?? '',
+    kind: target.kind || 'dom',
+    pagePath: target.pagePath ?? '',
+    screenSelector: target.screenSelector ?? '',
+    selector: target.selector ?? '',
+    textFingerprint: target.textFingerprint ?? '',
+    tagName: target.tagName ?? '',
+    elementId: target.elementId ?? '',
+    className: target.className ?? '',
+    rectX: target.rectX ?? 0,
+    rectY: target.rectY ?? 0,
+    rectWidth: target.rectWidth ?? 0,
+    rectHeight: target.rectHeight ?? 0
+  };
 }
 </script>
 
@@ -417,7 +475,7 @@ function scheduleBridgeAnnotationSync() {
             class="html-prototype-frame"
             sandbox="allow-scripts allow-forms allow-popups allow-modals"
             :src="entryUrl"
-            @load="() => { syncBridgeMode(); syncBridgeAnnotations(); }"
+            @load="() => { syncBridgeMode(); syncBridgeAnnotations(); syncBridgeDraftTargets(); }"
           ></iframe>
 
         </div>
@@ -460,6 +518,8 @@ function scheduleBridgeAnnotationSync() {
               <dd>{{ parentLastReceivedMessage || '-' }}</dd>
               <dt>parent → iframe</dt>
               <dd>{{ parentLastSentMessage || '-' }}</dd>
+              <dt>postMessage error</dt>
+              <dd>{{ bridgePostError || '-' }}</dd>
               <dt>草稿操作</dt>
               <dd>{{ lastDraftAction || '-' }}</dd>
               <dt>toggle selector</dt>
@@ -468,6 +528,14 @@ function scheduleBridgeAnnotationSync() {
               <dd>{{ props.bindings.map((binding) => binding.bindingId).join(', ') || '-' }}</dd>
               <dt>draft ids</dt>
               <dd>{{ props.draftTargets.map((target) => target.targetId || target.selector).join(', ') || '-' }}</dd>
+              <dt>save 状态</dt>
+              <dd>{{ props.saveDebug.status }}{{ props.saveDebug.bindingId ? ` / ${props.saveDebug.bindingId}` : '' }}</dd>
+              <dt>save 详情</dt>
+              <dd>{{ props.saveDebug.detail || '-' }}</dd>
+              <dt>delete 状态</dt>
+              <dd>{{ props.deleteDebug.status }}{{ props.deleteDebug.bindingId ? ` / ${props.deleteDebug.bindingId}` : '' }}</dd>
+              <dt>delete 详情</dt>
+              <dd>{{ props.deleteDebug.detail || '-' }}</dd>
               <dt>bridge reason</dt>
               <dd>{{ bridgeDebugState.reason || '-' }}</dd>
             </dl>
@@ -563,10 +631,10 @@ function scheduleBridgeAnnotationSync() {
                   class="saved-ann-delete"
                   type="button"
                   title="删除 ANN"
-                  @pointerdown.stop
-                  @click.stop="emit('delete-binding', binding)"
+                  @click.stop.prevent="emit('delete-binding', binding)"
                 >
                   <Trash2 :size="13" />
+                  <span>删除</span>
                 </button>
               </article>
             </template>

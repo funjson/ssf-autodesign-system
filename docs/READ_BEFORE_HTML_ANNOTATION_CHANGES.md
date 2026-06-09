@@ -403,3 +403,16 @@ parent -> iframe:
 - 禁止一边修 DOM 点击，一边改 ANN 列表、右侧任务联动或菜单结构。
 - 禁止没有状态探针就继续猜测 watcher 或 postMessage 是否生效。
 - 禁止再次引入多个地方同时写最终 `draftTargets`，除非协议里明确 iframe 只是临时乐观态，并且能被父页面确认快照覆盖。
+
+## 2026-06-09 postMessage 载荷必须纯对象
+
+本次定位到一个关键问题：Vue `props.draftTargets` / `props.bindings` 里的对象可能是响应式代理，不能直接作为 `iframe.contentWindow.postMessage(...)` 的载荷。非空数组里包含代理对象时，浏览器结构化克隆可能失败；空数组可以发送，所以症状会表现为“清空/删除最后一个 DOM 能同步，但删除多个中的某一个不同步”。
+
+后续规则：
+
+- 发给 iframe 的 `draftTargets` 必须先转成普通 JSON 对象。
+- 发给 iframe 的 `bindings / annotations` 也必须先转成普通 JSON 对象，包括内部的 `targets`。
+- draft 同步和 ANN 同步必须分开：
+  - `ssf-prototype-sync-draft-targets` 只同步待保存 DOM。
+  - `ssf-prototype-sync-ann-annotations` 只同步已保存 ANN 与 active ANN。
+- 不要再用一个“全量 sync”同时携带 `draftTargets`、`annotations`、`activeAnnotationId` 去处理所有交互；这会让待保存 DOM 和已保存 ANN 的状态互相污染。

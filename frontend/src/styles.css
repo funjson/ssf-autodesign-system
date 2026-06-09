@@ -1294,7 +1294,7 @@ button {
 
 .saved-ann-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px;
+  grid-template-columns: minmax(0, 1fr) 72px;
   gap: 6px;
   align-items: stretch;
   cursor: pointer;
@@ -1354,10 +1354,13 @@ button {
 }
 
 .saved-annotation-list .saved-ann-delete {
-  display: grid;
+  display: inline-flex;
+  gap: 4px;
   place-items: center;
-  width: 30px;
-  min-width: 30px;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  min-width: 72px;
   min-height: 38px;
   padding: 0;
   border: 1px solid #d8ded9;
@@ -1365,6 +1368,8 @@ button {
   background: #ffffff;
   color: #66716b;
   text-align: center;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .saved-annotation-list .saved-ann-delete:hover {

@@ -623,6 +623,20 @@ public class HtmlPrototypeService {
                       reportStatus("mode-updated");
                       return;
                     }
+                    if (data.type === "ssf-prototype-sync-draft-targets") {
+                      draftTargets = normalizeDraftTargets(data.draftTargets);
+                      lastSyncDraftCount = draftTargets.length;
+                      renderAnnotationOverlays();
+                      reportStatus("draft-targets-synced");
+                      return;
+                    }
+                    if (data.type === "ssf-prototype-sync-ann-annotations") {
+                      annotations = Array.isArray(data.annotations) ? data.annotations : [];
+                      activeAnnotationId = data.activeAnnotationId || "";
+                      renderAnnotationOverlays();
+                      reportStatus("ann-annotations-synced");
+                      return;
+                    }
                     if (data.type === "ssf-prototype-sync-annotations") {
                       annotations = Array.isArray(data.annotations) ? data.annotations : [];
                       draftTargets = normalizeDraftTargets(data.draftTargets);

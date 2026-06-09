@@ -12,6 +12,7 @@ RUN npm run build
 FROM nginx:1.27-alpine
 
 ENV BACKEND_UPSTREAM=http://backend:8080
+ENV NGINX_ENVSUBST_FILTER='^BACKEND_UPSTREAM$'
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 

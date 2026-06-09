@@ -16,7 +16,7 @@ SSF Autodesign 是一个面向 AI 软件研发流程的本地产品设计工作�
 demo/ssf-workspace
 ```
 
-这个目录包含当前可演示的产品设计文件和原型文件。Docker 启动后，后端会从这份工作区自动初始化一个内置演示项目；数据库数据不需要提前迁移。
+这个目录包含当前可演示的产品设计文件和原型文件。后端镜像会把它内置到 `/demo/ssf-workspace`，Docker 启动后会自动初始化一个内置演示项目；数据库数据不需要提前迁移。
 
 一键启动：
 
@@ -111,12 +111,15 @@ ssf-product-pm Skill 产物
 
 `demo/ssf-workspace` 是仓库内置演示资产，不依赖本机绝对路径。Docker 模式下：
 
-- `./demo` 会挂载到后端容器的 `/demo`。
-- HTML 标注会写回 `requirement-prototype/packages/current/layer-map.json`，所以演示过程中产生的标注会落到本机 `demo/` 目录。
+- 后端镜像内置 `/demo/ssf-workspace`，云端部署不需要额外创建 demo 文件夹。
+- 本地 Docker Compose 会把 `./demo` 挂载到后端容器的 `/demo`，方便演示时把标注写回本机文件。
+- HTML 标注会写回 `requirement-prototype/packages/current/layer-map.json`。本地 Compose 模式会落到本机 `demo/` 目录；云端镜像内置模式会落到容器文件系统，重启或重新部署后以镜像内置版本为准。
 - `/data` 是容器内应用数据卷，用来保存导入副本、标注和运行数据。
 - MySQL 使用 `mysql-data` volume 保存数据库。
 
 如果想恢复内置 demo 到仓库版本，可以使用 Git 丢弃 `demo/` 下的演示改动，或重新 clone 一份仓库。
+
+Railway 这类云端平台部署后端时，请确保后端服务使用仓库根目录作为 build context，并使用 `backend/Dockerfile` 构建。这样 Dockerfile 才能复制根目录下的 `demo/`。
 
 本地开发时，默认 demo 路径仍然来自：
 

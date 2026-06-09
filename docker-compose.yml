@@ -18,7 +18,8 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: ssf-autodesign-backend
     restart: unless-stopped
     depends_on:
